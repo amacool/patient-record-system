@@ -9,7 +9,6 @@
         "laravel/framework": "5.1.*",
         "illuminate/html": "~5.0",
         "barryvdh/laravel-ide-helper": "~2.1",
-        "golonka/bbcodeparser": "~2.2",
         "authy/php": "~2.2",
         "shin1x1/laravel-force-https-url-scheme": "~1.0"
     },
