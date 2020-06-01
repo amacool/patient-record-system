@@ -250,8 +250,6 @@ class AuthController extends Controller
             $this->incrementLoginAttempts($request);
         }
 
-        dd($user);
-
         return redirect($this->loginPath())
             ->withInput($request->only($this->loginUsername(), 'remember'))
             ->withErrors([
