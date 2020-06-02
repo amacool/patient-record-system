@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use Golonka\BBCode\BBCodeParser;
+use App\Classes\golonka\bbcodeparser\src\BBCodeParser;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Http\Request;
 use App\Http\Requests;
