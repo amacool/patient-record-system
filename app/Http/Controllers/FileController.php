@@ -4,14 +4,19 @@ namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use App\Http\Requests;
 use App\Http\Controllers\Controller;
+use App\Http\Traits\CustomAuthTrait;
+use App\Client;
+use App\Fileupload;
 
 
 class FileController extends Controller
 {
-    use CustomTraitAuth;
+    use CustomAuthTrait;
 
     // Only allow logged in users
     public function __construct()
@@ -27,20 +32,21 @@ class FileController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function index($clientid)
+    public function index($clientId)
     {
-        $client = \App\Client::find($clientid);
+        $client = Client::find($clientId);
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
-        $user = \Auth::user();
+        $user = Auth::user();
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $client->id);
-        if (!$owneroraccess) {
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
-            return view('files.index', compact('client'));
+
+        return view('files.index', compact('client'));
     }
 
     /**
@@ -48,23 +54,23 @@ class FileController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function create($clientid)
+    public function create($clientId)
     {
-        $client = \App\Client::find($clientid);
-        $user = \Auth::user();
+        $client = Client::find($clientId);
+        $user = Auth::user();
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $client->id);
-        if (!$owneroraccess) {
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         //DECRYPT DATA TO BE SHOWN
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
 
-            return view('files.create', compact('client', 'clientid'));
+        return view('files.create', compact('client', 'clientId'));
     }
 
     /**
@@ -73,36 +79,35 @@ class FileController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    public function store(Requests\UploadFileRequest $request, $clientid)
+    public function store(Requests\UploadFileRequest $request, $clientId)
     {
         $this->validate($request, [
             'file' => 'required|mimes:pdf|max:10240',
         ]);
 
-        $client = \App\Client::find($clientid);
-        $user = \Auth::user();
+        $client = Client::find($clientId);
+        $user = Auth::user();
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $client->id);
-        if (!$owneroraccess) {
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
-        //How many files does this client have in database?
+        // How many files does this client have in database?
         $clientfiles = count($client->files);
 
         // Set the next filename as a number larger than this
-        //Check if the filename already exists (if a record has been deleted manually from the database, this can happen)
+        // Check if the filename already exists (if a record has been deleted manually from the database, this can happen)
         // If it exists, increment it and check again until the file does not exist anymore. Proceed with this filename (path)
 
         $incrementor = 1;
         do {
-            $newnumber = $clientfiles + $incrementor;
-            $path = base_path() . '/storage/docs/clientdocs/' . $clientid . '/' . $newnumber . '.pdf';
+            $newNumber = $clientfiles + $incrementor;
+            $path = base_path() . '/storage/docs/clientdocs/' . $clientId . '/' . $newNumber . '.pdf';
             $incrementor++;
-        }
-        while (File::exists($path));
+        } while (File::exists($path));
 
         // Check if a file is uploaded
         if ($request->hasFile('file')) {
@@ -115,13 +120,12 @@ class FileController extends Controller
 
             // Set new filename
             // Removing this, to force pdf-filename
-            //$fileName = $newnumber . '.' . $fileExt;
-            $fileName = $newnumber . '.pdf';
+            // $fileName = $newNumber . '.' . $fileExt;
+            $fileName = $newNumber . '.pdf';
 
             // Get path based on client id
-            //$path = base_path() . '/public/docs/clientdocs/' . $clientid;
-            $path = base_path() . '/storage/docs/clientdocs/' . $clientid;
-
+            // $path = base_path() . '/public/docs/clientdocs/' . $clientId;
+            $path = base_path() . '/storage/docs/clientdocs/' . $clientId;
 
             // Make directory if it does not exist
            File::makeDirectory($path, $mode = 0777, true, true);
@@ -138,29 +142,27 @@ class FileController extends Controller
             $content = File::get($file);
 
             // Encrypt the content
-            $encryptedcontent = Crypt::encrypt($content);
+            $encryptedContent = Crypt::encrypt($content);
 
             // Replace the original content with the encrypted content
-            $newcontent = File::put($file, $encryptedcontent);
+            File::put($file, $encryptedContent);
 
             // PROCESS FOR DECRYPTING
-            //$content = File::get($file);
-            //$decryptedcontent = Crypt::decrypt($content);
-            //$newcontent = File::put($file, $decryptedcontent);
+            // $content = File::get($file);
+            // $decryptedcontent = Crypt::decrypt($content);
+            // $newcontent = File::put($file, $decryptedcontent);
 
             // Insert the path to database
-            $fileupload = new \App\Fileupload;
-            $fileupload->user_id = \Auth::user()->id;
-            $fileupload->client_id = $clientid;
+            $fileupload = new Fileupload;
+            $fileupload->user_id = Auth::user()->id;
+            $fileupload->client_id = $clientId;
             $fileupload->file = $fileName;
             $fileupload->description = $request->description;
             $fileupload->deleted = '0';
             $fileupload->save();
-
         }
 
-        return redirect()->route('clients.files.index', $clientid)->with('message', 'Fil lastet opp');
-
+        return redirect()->route('clients.files.index', $clientId)->with('message', 'Fil lastet opp');
     }
 
     /**
@@ -171,7 +173,6 @@ class FileController extends Controller
      */
     public function show($id)
     {
-        //
     }
 
     /**
@@ -182,7 +183,6 @@ class FileController extends Controller
      */
     public function edit($id)
     {
-        //
     }
 
     /**
@@ -194,7 +194,6 @@ class FileController extends Controller
      */
     public function update(Request $request, $id)
     {
-        //
     }
 
     /**
@@ -204,58 +203,63 @@ class FileController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function download($clientid, $filename)
+    public function download($clientId, $fileName)
     {
-        $client = \App\Client::find($clientid);
-        $user = \Auth::user();
+        $client = Client::find($clientId);
+        $user = Auth::user();
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $client->id);
-        if (!$owneroraccess) {
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         // Get path based on client id
-        //$path = base_path() . '/public/docs/clientdocs/' . $clientid;
-        $path = base_path() . '/storage/docs/clientdocs/' . $clientid;
+        // $path = base_path() . '/public/docs/clientdocs/' . $clientid;
+        $path = base_path() . '/storage/docs/clientdocs/' . $clientId;
+        $relativePath = 'clientdocs/' . $clientId;
 
-
-        //Get full path to file
-        $file = $path . '/' . $filename;
+        // Get full path to file
+        $file = $path . '/' . $fileName;
 
         // Extract file extension from filename
         // Remove this to force pdf
-        //$ext = pathinfo($file, PATHINFO_EXTENSION);
+        // $ext = pathinfo($file, PATHINFO_EXTENSION);
         $ext = "pdf";
 
         // Extract filename
         $number = pathinfo($file, PATHINFO_FILENAME);
 
         // Create title of decrypted file
-        $decryptedname = $number . 'decrypted.' . $ext;
+        $decryptedName = $number . 'decrypted.' . $ext;
         // Set destination for decrypted file
-        $newdestination = $path . '/' . $decryptedname;
+        $newDestination = $path . '/' . $decryptedName;
+        $relativeDestination = $relativePath . '/' . $decryptedName;
 
-            // Copy original file
-            $success = File::copy($file, $newdestination);
+        // Copy original file
+        File::copy($file, $newDestination);
 
-            // PROCESS FOR DECRYPTING
-            //Get contents of new file
-            $content = File::get($newdestination);
-            // Decrypt the contents of the new file
-            $decryptedcontent = Crypt::decrypt($content);
-            // Put the decrypted content in the new file
-            $newcontent = File::put($newdestination, $decryptedcontent);
+        // PROCESS FOR DECRYPTING
+        // Get contents of new file
+        $content = File::get($newDestination);
+        // Decrypt the contents of the new file
+        $decryptedContent = Crypt::decrypt($content);
+        // Put the decrypted content in the new file
+        File::put($newDestination, $decryptedContent);
 
-            // FOR Å LASTE NED FILEN; OG DERETTER SLETTE DEN
-            //return \Response::download($newdestination, $decryptedname)->deleteFileAfterSend(true);
+        $headers = [
+          'Content-Type' => 'application/pdf',
+          'Content-Disposition' => 'inline; ' . $decryptedName,
+        ];
 
-            // FOR Å SE FILEN I BROWSER (MEN FÅR DA IKKE SLETTET DEN FORELØPIG)
-            return \Response::make(file_get_contents($newdestination), 200, [
-                'Content-Type' => 'application/pdf',
-                'Content-Disposition' => 'inline; '.$decryptedname,
-            ]);
+        // FOR Å LASTE NED FILEN; OG DERETTER SLETTE DEN
+        // return \Response::download($newdestination,  $decryptedName)->deleteFileAfterSend(true);
+
+        // FOR Å SE FILEN I BROWSER (MEN FÅR DA IKKE SLETTET DEN FORELØPIG)
+        // return Response::make(file_get_contents($newDestination), 200, $headers);
+
+        return Storage::download($relativeDestination, $decryptedName, $headers);
     }
 
 
@@ -267,6 +271,5 @@ class FileController extends Controller
      */
     public function destroy($id)
     {
-        //
     }
 }

@@ -1,26 +1,26 @@
 @extends('layout')
 
 @section('content')
-    @include('partials.templatesidebar')
-    <div class="col-md-10">
+@include('partials.templateSidebar')
+<div class="col-md-10">
 
-    <h4>Opprett ny mal</h4>
-        <hr/>
+  <h4>Opprett ny mal</h4>
+  <hr />
 
-    {!! Form::open(array('route' => 'templates.store')) !!}
-        {!! Form::hidden('category_id', 1) !!}
+  {!! Form::open(array('route' => 'templates.store')) !!}
+    {!! Form::hidden('category_id', 1) !!}
 
     {{--<div class="col-md-10">
-        <div class="form-group">
-            {!! Form::label('category_id', 'Category: ') !!}
-            {!! Form::select('category_id', $categories, null, ['id' => 'categories_list', 'class' => 'form-control']) !!}
-        </div>
-    </div>--}}
+          <div class="form-group">
+              {!! Form::label('category_id', 'Category: ') !!}
+              {!! Form::select('category_id', $categories, null, ['id' => 'categories_list', 'class' => 'form-control']) !!}
+          </div>
+      </div>--}}
 
-    @include('partials.createtemplateform')
+    @include('partials.createTemplateForm')
 
-    {!! Form::close() !!}
+  {!! Form::close() !!}
 
-    </div>
+</div>
 
 @stop

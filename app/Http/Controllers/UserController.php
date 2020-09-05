@@ -3,24 +3,36 @@
 namespace App\Http\Controllers;
 
 use Authy\AuthyApi as AuthyApi;
-use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Crypt;
-use Illuminate\Http\Request;
-use App\Http\Requests;
 use App\Http\Controllers\Controller;
+use App\Http\Traits\CustomAuthTrait;
+use App\Http\Traits\SanitizeTrait;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
+use App\User;
+use App\Company;
+use App\Wpuser;
+use App\Client;
+use App\Record;
+use App\Wpposts;
+use App\Template;
+use App\Awaitingupload;
+use App\Awaitingdiagnoses;
+
 
 class UserController extends Controller
 {
+    use CustomAuthTrait;
+    use SanitizeTrait;
 
-    // Only allow logged in users
     public function __construct()
     {
         $this->middleware('auth');
         $this->middleware('timeout');
         $this->middleware('revalidate');
     }
-
 
     /**
      * Display the specified resource.
@@ -30,28 +42,26 @@ class UserController extends Controller
      */
     public function index()
     {
-        $user = \Auth::user();
+        $user = Auth::user();
 
-        if ($user->role == 2) {
-            $users = \App\User::where('active', 1)->get();
-
+        if ($user->role === 2) {
+            $users = User::where('active', 1)->get();
             return view('users.index', compact('users'));
         }
 
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+        return redirect('/')->with('message', 'Du har ikke tilgang.');
     }
 
-    public function inactiveindex()
+    public function inactiveIndex()
     {
-        $user = \Auth::user();
+        $user = Auth::user();
 
-        if ($user->role == 2) {
-            $users = \App\User::where('active', 0)->get();
-
+        if ($user->role === 2) {
+            $users = User::where('active', 0)->get();
             return view('users.index', compact('users'));
         }
 
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+        return redirect('/')->with('message', 'Du har ikke tilgang.');
     }
 
     /**
@@ -62,7 +72,6 @@ class UserController extends Controller
      */
     public function show($companyid, $userid)
     {
-        //
     }
 
     /**
@@ -71,41 +80,39 @@ class UserController extends Controller
      * @param  int $id
      * @return \Illuminate\Http\Response
      */
-    public function edit($companyid, $userid)
+    public function edit($companyId, $userId)
     {
         $authy_api = new AuthyApi(getenv('AUTHY_TOKEN'));
-        $user = \App\User::find($userid);
-        $loggedinuser = \Auth::user();
-        $company = \App\Company::find($companyid);
-        $companies = \App\Company::lists('name', 'id');
+        $user = User::find($userId);
+        $loggedInUser = Auth::user();
+        $company = Company::find($companyId);
+        $companies = Company::select('name', 'id')->get();
+        $companyPairs = [];
+
+        // Neither a system admin nor a logged in user
+        if ($loggedInUser->role !== 2 && $user->id !== $loggedInUser->id) {
+            return redirect('/')->with('message', 'Du har ikke tilgang');
+        }
+
+        foreach ($companies as $item) {
+            $companyPairs[$item->id] = $item->name;
+        }
 
         if ($user->authy_id !== null) {
-            $authystatus = $authy_api->userStatus($user->authy_id);
-            //dd($authystatus->ok());
-            //dd($authystatus->errors());
-            $authystatus = $authystatus->bodyvar('status');
+            $authyStatus = $authy_api->userStatus($user->authy_id);
+            $authyStatus = $authyStatus->bodyvar('status');
         };
 
         if ($user->authy_id == null) {
-            $authystatus = $authy_api->userStatus($user->authy_id);
-            //dd($authystatus->ok());
-            //dd($authystatus->errors());
-            $authystatus = null;
+            $authyStatus = $authy_api->userStatus($user->authy_id);
+            $authyStatus = null;
         };
 
         $logins = $user->logins()->where('success', 'Success')->orderBy('id', 'DESC')->take(5)->get();
-        $wrongpassword = $user->logins()->where('success', '')->where('combocorrect', 'Error')->orderBy('id', 'DESC')->take(5)->get();
-        $crackedpassword = $user->logins()->where('success', '')->where('combocorrect', 'Correct')->where('tokencorrect', 'Error')->orderBy('id', 'DESC')->take(5)->get();
+        $wrongPassword = $user->logins()->where('success', '')->where('combocorrect', 'Error')->orderBy('id', 'DESC')->take(5)->get();
+        $crackedPassword = $user->logins()->where('success', '')->where('combocorrect', 'Correct')->where('tokencorrect', 'Error')->orderBy('id', 'DESC')->take(5)->get();
 
-        if ($loggedinuser->role == '2') {
-            return view('users.edit', compact('user', 'loggedinuser', 'company', 'logins', 'wrongpassword', 'crackedpassword', 'authystatus', 'companies'));
-        }
-        if ($user->id == $loggedinuser->id) {
-            return view('users.edit', compact('user', 'loggedinuser', 'company', 'logins', 'wrongpassword', 'crackedpassword', 'authystatus', 'companies'));
-        }
-
-        // Else, redirect to home page
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang');
+        return view('users.edit', compact('user', 'company', 'logins', 'wrongPassword', 'crackedPassword', 'authyStatus', 'companyPairs'));
     }
 
     /**
@@ -114,25 +121,22 @@ class UserController extends Controller
      * @param  int $id
      * @return \Illuminate\Http\Response
      */
-    public function accesslogs($companyid, $userid)
+    public function accessLogs($companyId, $userId)
     {
-        $user = \App\User::find($userid);
-        $loggedinuser = \Auth::user();
-        $company = \App\Company::find($companyid);
+        $user = User::find($userId);
+        $loggedInUser = Auth::user();
+        $company = Company::find($companyId);
+
+        // Neither a system admin nor a logged in user
+        if ($loggedInUser->role !== 2 && $user->id !== $loggedInUser->id) {
+            return redirect('/')->with('message', 'Du har ikke tilgang');
+        }
 
         $logins = $user->logins()->where('success', 'Success')->orderBy('id', 'DESC')->take(5)->get();
-        $wrongpassword = $user->logins()->where('success', '')->where('combocorrect', 'Error')->orderBy('id', 'DESC')->take(5)->get();
-        $crackedpassword = $user->logins()->where('success', '')->where('tokencorrect', 'Error')->orderBy('id', 'DESC')->take(5)->get();
+        $wrongPassword = $user->logins()->where('success', '')->where('combocorrect', 'Error')->orderBy('id', 'DESC')->take(5)->get();
+        $crackedPassword = $user->logins()->where('success', '')->where('tokencorrect', 'Error')->orderBy('id', 'DESC')->take(5)->get();
 
-        if ($loggedinuser->role == '2') {
-            return view('users.logs', compact('user', 'loggedinuser', 'company', 'logins', 'wrongpassword', 'crackedpassword'));
-        }
-        if ($user->id == $loggedinuser->id) {
-            return view('users.logs', compact('user', 'loggedinuser', 'company', 'logins', 'wrongpassword', 'crackedpassword'));
-        }
-
-        // Else, redirect to home page
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang');
+        return view('users.logs', compact('user', 'loggedInUser', 'company', 'logins', 'wrongPassword', 'crackedPassword'));
     }
 
     /**
@@ -142,156 +146,154 @@ class UserController extends Controller
      * @param  int $id
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, $companyid, $userid)
+    public function update(Request $request, $companyId, $userId)
     {
         $this->validate($request, [
-            'password' => 'required|confirmed|min:8|regex:/^\S*(?=\S{8,})(?=\S*[a-z])(?=\S*[A-Z])(?=\S*[\d])\S*$/',
+            'password' => ['required', 'confirmed', 'regex:/^\S*(?=\S{8,})(?=\S*[a-z])(?=\S*[A-Z])(?=\S*[\d])\S*$/'],
+        ], [
+            'password.required' => 'Du må oppgi et passord',
+            'password.confirmed' => 'Passordet må skrives inn likt begge plasser',
+            'password.regex' => 'Passordet må være minst 8 tegn, og inneholde både små bokstaver, store bokstaver og tall'
         ]);
 
-        $user = \App\User::find($userid);
-        $loggedinuser = \Auth::user();
-        $company = \App\Company::find($companyid);
-
+        $user = User::find($userId);
+        $loggedInUser = Auth::user();
         $credentials = $request->only(
             'password', 'password_confirmation'
         );
 
+        // Neither a system admin nor a logged in user
+        if ($loggedInUser->role !== 2 && $user->id !== $loggedInUser->id) {
+            return redirect('/')->with('message', 'Du har ikke tilgang');
+        }
+
         // If user is admin, allow password change without old password
-        if ($loggedinuser->role == '2') {
+        if ($loggedInUser->role === 2) {
             $user->password = bcrypt($credentials['password']);
             $user->save();
-            return redirect()->route('companies.users.edit', [$companyid, $userid])->with('message', 'Passord endret');
-
+            return redirect()->route('companies.users.edit', [$companyId, $userId])->with('message', 'Passord endret');
         }
 
-        //If user is not admin, check if old password is correct before allowing change
-        $check = Hash::check($request['oldpassword'], $user->password);
+        // If user is not admin, check if old password is correct before allowing change
+        $check = Hash::check($request['old_password'], $user->password);
         if (!$check) {
-            return redirect()->route('home')->with('message', 'Feil passord.');
+            return redirect('/')->with('message', 'Feil passord.');
         }
 
-        if ($user->id == $loggedinuser->id) {
+        if ($user->id == $loggedInUser->id) {
             $user->password = bcrypt($credentials['password']);
             $user->save();
-            return redirect()->route('companies.users.edit', [$companyid, $userid])->with('message', 'Passord endret');
-
+            return redirect()->route('companies.users.edit', [$companyId, $userId])->with('message', 'Passord endret');
         }
-
-        // Else, redirect to home page
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang');
     }
 
-    public function standardtitle(Request $request, $companyid, $userid)
+    public function standardTitle(Request $request, $companyId, $userId)
     {
         $this->validate($request, [
-            'standardtitle' => 'max:30',
+            'standard_title' => 'max:30',
+        ], [
+            'standard_title.max' => 'Standardtittelen kan ikke være lengre enn 30 tegn'
         ]);
 
-        $user = \App\User::find($userid);
-        $loggedinuser = \Auth::user();
-        $company = \App\Company::find($companyid);
-        $data = $request->all();
+        $user = User::find($userId);
+        $loggedInUser = Auth::user();
 
-
-        if ($loggedinuser->role == '2') {
-            $user->standardtitle = $request['standardtitle'];
-            $user->save();
-            return redirect()->route('companies.users.edit', [$companyid, $userid])->with('message', 'Standardtittel endret');
+        // Neither a system admin nor a logged in user
+        if ($loggedInUser->role !== 2 && $user->id !== $loggedInUser->id) {
+            return redirect('/')->with('message', 'Du har ikke tilgang');
         }
 
-        if ($user->id == $loggedinuser->id) {
-            $user->standardtitle = $request['standardtitle'];
-            $user->save();
-            return redirect()->route('companies.users.edit', [$companyid, $userid])->with('message', 'Standardtittel endret');
-        }
-
-        // Else, redirect to home page
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang');
+        $user->standard_title = SanitizeTrait::traitMethod($request['standard_title']);
+        $user->save();
+        return redirect()->route('companies.users.edit', [$companyId, $userId])->with('message', 'Standardtittel endret');
     }
 
-    public function secretquestion(Request $request, $companyid, $userid)
+    public function secretQuestion(Request $request, $companyId, $userId)
     {
         $this->validate($request, [
-            'secretquestion' => 'required|max:255',
-            'secretanswer' => 'required|max:255',
+            'secret_question' => 'required|max:255',
+            'secret_answer' => 'required|max:255',
+        ], [
+            'secret_question.required' => 'Du må oppgi et hemmelig spørsmål',
+            'secret_question.max' => 'Det hemmelige spørsmålet kan ikke være lengre enn 255 tegn',
+            'secret_answer.required' => 'Du må oppgi et svar på det hemmelige spørsmålet',
+            'secret_answer.max' => 'Svaret på det hemmelige spørsmålet kan ikke være lengre enn 255 tegn',
         ]);
 
-        $user = \App\User::find($userid);
-        $loggedinuser = \Auth::user();
-        $company = \App\Company::find($companyid);
-        $data = $request->all();
+        $user = User::find($userId);
+        $loggedInUser = Auth::user();
 
-
-        if ($loggedinuser->role == '2') {
-            $user->secretquestion = Crypt::encrypt($request['secretquestion']);
-            $user->secretanswer = Crypt::encrypt($request['secretanswer']);
-            $user->save();
-            return redirect()->route('companies.users.edit', [$companyid, $userid])->with('message', 'Hemmelig spørsmål endret');
+        // Neither a system admin nor a logged in user
+        if ($loggedInUser->role !== 2 && $user->id !== $loggedInUser->id) {
+            return redirect('/')->with('message', 'Du har ikke tilgang');
         }
 
-        if ($user->id == $loggedinuser->id) {
-            $user->secretquestion = Crypt::encrypt($request['secretquestion']);
-            $user->secretanswer = Crypt::encrypt($request['secretanswer']);
-            $user->save();
-            return redirect()->route('companies.users.edit', [$companyid, $userid])->with('message', 'Hemmelig spørsmål endret');
-        }
-
-        // Else, redirect to home page
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang');
+        $user->secret_question = Crypt::encrypt(SanitizeTrait::traitMethod($request['secret_question']));
+        $user->secret_answer = Crypt::encrypt(SanitizeTrait::traitMethod($request['secret_answer']));
+        $user->save();
+        return redirect()->route('companies.users.edit', [$companyId, $userId])->with('message', 'Hemmelig spørsmål endret');
     }
 
 
     // AUTHY REGISTER USER
-    public function registerauthy(Request $request, $companyid, $userid)
+    public function registerAuthy(Request $request, $companyId, $userId)
     {
-        $user = \App\User::find($userid);
+        $data = $request->all();
+        $validator = Validator::make($data, [
+            'country_code' => 'regex:/^\d{1,3}$/',
+            'phone' => 'regex:/^\d{1,13}$/',
+        ]);
 
-        $loggedinuser = \Auth::user();
+        if ($validator->fails()) {
+            return redirect()
+                ->back()
+                ->withInput($request->only('country_code', 'phone'))
+                ->withErrors($validator);
+        }
 
-        if ($loggedinuser->role == 2) {
-            $data = $request->all();
+        $user = User::find($userId);
+        $loggedInUser = Auth::user();
+
+        if ($loggedInUser->role === 2) {
             $phone = $data['phone'];
             $country_code = $data['country_code'];
             $email = $user->email;
 
             $authy_api = new AuthyApi(getenv('AUTHY_TOKEN'));
-            $registereduser = $authy_api->registerUser($email, $phone, $country_code);
+            $registeredUser = $authy_api->registerUser($email, $phone, $country_code);
 
-            if ($registereduser->ok()) {
-                $user->authy_id = $registereduser->id();
+            if ($registeredUser->ok()) {
+                $user->authy_id = $registeredUser->id();
                 $user->save();
             } else {
                 // something went wrong
             }
-            return redirect()->route('companies.users.edit', [$companyid, $userid])->with('message', 'Registrering hos Authy vellykket');
+            return redirect()->route('companies.users.edit', [$companyId, $userId])->with('message', 'Registrering hos Authy vellykket');
         }
         // Else, redirect to home page
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang');
+        return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
     // AUTHY REGISTER USER
-    public function deleteauthy(Request $request, $companyid, $userid)
+    public function deleteAuthy(Request $request, $companyId, $userId)
     {
+        $loggedInUser = Auth::user();
 
-        $loggedinuser = \Auth::user();
-
-        if ($loggedinuser->role == 2) {
-            $user = \App\User::find($userid);
+        if ($loggedInUser->role === 2) {
+            $user = User::find($userId);
             $data = $request->all();
 
             $authy_id = $data['authy_id'];
 
             $authy_api = new AuthyApi(getenv('AUTHY_TOKEN'));
-            $deleteduser = $authy_api->deleteUser($authy_id);
 
             $user->authy_id = "";
             $user->save();
 
-            return redirect()->route('companies.users.edit', [$companyid, $userid])->with('message', 'Slettet hos Authy');
-
+            return redirect()->route('companies.users.edit', [$companyId, $userId])->with('message', 'Slettet hos Authy');
         }
         // Else, redirect to home page
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang');
+        return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
     /**
@@ -301,154 +303,141 @@ class UserController extends Controller
      * @param  int $id
      * @return \Illuminate\Http\Response
      */
-    public function changetwofactor(Request $request, $companyid, $userid)
+    public function changeTwoFactor(Request $request, $companyId, $userId)
     {
-        $loggedinuser = \Auth::user();
+        $loggedInUser = Auth::user();
 
         // Action can only be performed by system admin
-        if ($loggedinuser->role == 2) {
-            $user = \App\User::find($userid);
+        if ($loggedInUser->role === 2) {
+            $user = User::find($userId);
 
-            if ($user->tfa == '0') {
-                $user->tfa = '1';
+            if ($user->tfa === 0) {
+                $user->tfa = 1;
                 $user->save();
                 return redirect()->back()->with('message', '2FA er nå PÅ');
-            }
-
-            if ($user->tfa == '1') {
-                $user->tfa = '0';
+            } else if ($user->tfa === 1) {
+                $user->tfa = 0;
                 $user->save();
                 return redirect()->back()->with('message', 'ADVARSEL: 2FA er nå AV');
             }
         }
 
         // Else, redirect to home page
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang');
-
+        return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
-    public function paymentwarning(Request $request, $companyid, $userid)
+    public function paymentWarning(Request $request, $companyId, $userId)
     {
-        $loggedinuser = \Auth::user();
+        $loggedInUser = Auth::user();
 
         // Action can only be performed by system admin
-        if ($loggedinuser->role == 2) {
-            $user = \App\User::find($userid);
+        if ($loggedInUser->role === 2) {
+            $user = User::find($userId);
 
-            if ($user->paymentmissing == '0000-00-00') {
-                $user->paymentmissing = \Carbon\Carbon::now();
+            if (!$this->checkPaymentMissing($userId)) {
+                $user->payment_missing = \Carbon\Carbon::now();
                 $user->save();
                 return redirect()->back()->with('message', 'Betalingsadvarsel slått på');
-            }
-
-            if ($user->paymentmissing !== '0000-00-00') {
-                $user->paymentmissing = "0000-00-00";
+            } else {
+                $user->payment_missing = null;
                 $user->save();
                 return redirect()->back()->with('message', 'Betalingsadvarsel slått av');
             }
         }
 
         // Else, redirect to home page
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang');
-
+        return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
-    public function suspenduser(Request $request, $companyid, $userid)
+    public function suspendUser(Request $request, $companyId, $userId)
     {
-        $loggedinuser = \Auth::user();
+        $loggedInUser = Auth::user();
 
         // Action can only be performed by system admin
-        if ($loggedinuser->role == 2) {
-            $user = \App\User::find($userid);
+        if ($loggedInUser->role === 2) {
+            $user = User::find($userId);
 
-            if ($user->suspended == '0000-00-00') {
+            if (!$this->checkSuspended($user->id, false)) {
                 $user->suspended = \Carbon\Carbon::now();
                 $user->save();
                 return redirect()->back()->with('message', 'Brukerkonto låst');
-            }
-
-            if ($user->suspended !== '0000-00-00') {
-                $user->suspended = "0000-00-00";
+            } else {
+                $user->suspended = null;
                 $user->save();
                 return redirect()->back()->with('message', 'Brukerkonto åpnet');
             }
         }
 
         // Else, redirect to home page
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang');
-
+        return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
-    public function activatetoggle(Request $request, $companyid, $userid)
+    public function activateToggle(Request $request, $companyId, $userId)
     {
-        $loggedinuser = \Auth::user();
+        $loggedInUser = Auth::user();
 
         // Action can only be performed by system admin
-        if ($loggedinuser->role == 2) {
-            $user = \App\User::find($userid);
+        if ($loggedInUser->role === 2) {
+            $user = User::find($userId);
 
             if ($user->active == 0) {
                 $user->active = 1;
                 $user->save();
                 return redirect()->back()->with('message', 'Brukerkonto aktivert');
-            }
-
-            if ($user->active !== 0) {
-                $user->suspended = 0;
+            } else {
+                $user->active = 0;
+                $user->suspended = null;
                 $user->save();
                 return redirect()->back()->with('message', 'Brukerkonto deaktivert');
             }
         }
 
         // Else, redirect to home page
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang');
-
+        return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
-    public function changecompany(Request $request, $companyid, $userid)
+    public function changeCompany(Request $request, $companyId, $userId)
     {
-        $loggedinuser = \Auth::user();
+        $loggedInUser = Auth::user();
         $data = $request->all();
 
         // Action can only be performed by system admin
-        if ($loggedinuser->role == 2) {
-            $user = \App\User::find($userid);
+        if ($loggedInUser->role === 2) {
+            $user = User::find($userId);
             $user->company_id = $data['company_id'];
             $user->save();
             return redirect()->route('companies.users.edit', [$user->company->id, $user->id])->with('message', 'Firmatilhørighet endret');
         }
 
         // Else, redirect to home page
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang');
-
+        return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
-    public function changerole(Request $request, $companyid, $userid)
+    public function changeRole(Request $request, $companyId, $userId)
     {
-        $loggedinuser = \Auth::user();
+        $loggedInUser = Auth::user();
         $data = $request->all();
 
         // Action can only be performed by system admin
-        if ($loggedinuser->role == 2) {
-            $user = \App\User::find($userid);
+        if ($loggedInUser->role === 2) {
+            $user = User::find($userId);
             $user->role = $data['role'];
             $user->save();
             return redirect()->back()->with('message', 'Rolle endret');
         }
 
         // Else, redirect to home page
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang');
-
+        return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
-    public function changephone(Request $request, $companyid, $userid)
+    public function changePhone(Request $request, $companyId, $userId)
     {
-        $loggedinuser = \Auth::user();
+        $loggedInUser = Auth::user();
         $data = $request->all();
 
         // Action can only be performed by system admin
-        if ($loggedinuser->role == 2) {
-            $user = \App\User::find($userid);
+        if ($loggedInUser->role === 2) {
+            $user = User::find($userId);
             $user->phone = $data['phone'];
             $user->country_code = $data['country_code'];
             $user->save();
@@ -456,8 +445,7 @@ class UserController extends Controller
         }
 
         // Else, redirect to home page
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang');
-
+        return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
     /**
@@ -465,33 +453,27 @@ class UserController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function accessandtransferlogs($companyid, $userid)
+    public function accessAndTransferLogs($companyId, $userId)
     {
-        $loggedinuser = \Auth::user();
-        $user = \App\User::find($userid);
-        $company = \App\Company::find($companyid);
+        $loggedInUser = Auth::user();
+        $user = User::find($userId);
+        $company = Company::find($companyId);
 
-        if ($loggedinuser->suspended !== "0000-00-00") {
-            return redirect()->route('home')->with('message', 'Tilgangen din er begrenset på grunn av mangelfull betaling');
-        }
+        $this->checkSuspended($loggedInUser->id, true);
 
-        if ($loggedinuser->role == '2') {
-            return view('users.accessandtransfers', compact('user', 'company'));
-        }
-        if ($userid == $loggedinuser->id) {
-            return view('users.accessandtransfers', compact('user', 'company'));
+        if ($loggedInUser->role === 2 || $userId == $loggedInUser->id) {
+            return view('users.accessAndTransfers', compact('user', 'company'));
         }
 
         // Else, redirect to home page
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang');
-
+        return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
 
     // STARTING FUNCTIONS RELATED TO DATABASE TRANSFER
 
     // Function to decrypt a value from the old database
-    public function olddecrypt($value)
+    public function oldDecrypt($value)
     {
         $key = env('WPKEY');
 
@@ -515,51 +497,48 @@ class UserController extends Controller
     }
 
     // Function to sync an old user with new id using email address as identifier
-    public function syncusers($email)
+    public function syncUsers($email)
     {
-
-
         // Find the wordpress user by email address
-        $wpuser = \App\Wpuser::where('user_email', $email)->first();
+        $wpuser = Wpuser::where('user_email', $email)->first();
 
         // Grab the existing user if he exists in the new database
-        $newuser = \App\User::where('email', $email)->first();
+        $newUser = User::where('email', $email)->first();
 
         // If the user exists in new system
-        if (count($newuser)) {
-            //add his ID to the wordpress user table
-            $wpuser->newid = $newuser->id;
+        if (count($newUser)) {
+            // add his ID to the wordpress user table
+            $wpuser->newid = $newUser->id;
             $wpuser->save();
 
             // add the wordpress ID to the existing users table
-            $newuser->oldid = $wpuser->ID;
-            $newuser->save();
-            return $newuser;
+            $newUser->oldid = $wpuser->ID;
+            $newUser->save();
+            return $newUser;
         }
 
-        if (!count($newuser)) {
+        if (!count($newUser)) {
+            $newUser = new User;
+            $newUser->oldid = $wpuser->ID;
+            $newUser->email = $wpuser->user_email;
+            $newUser->name = $wpuser->display_name;
+            $newUser->password = bcrypt('password');
+            $newUser->company_id = 1;
+            $newUser->save();
 
-            $newuser = new \App\User;
-            $newuser->oldid = $wpuser->ID;
-            $newuser->email = $wpuser->user_email;
-            $newuser->name = $wpuser->display_name;
-            $newuser->password = bcrypt('password');
-            $newuser->company_id = 1;
-            $newuser->save();
-
-            $wpuser->newid = $newuser->id;
+            $wpuser->newid = $newUser->id;
             $wpuser->save();
-            return $newuser;
+            return $newUser;
         }
     }
 
     // Get all users clients from old database
 
-    public function findclients($userid)
+    public function findClients($userId)
     {
         // FOR TESTING
-        //$userid = '28';
-        $user = \App\User::find($userid);
+        // $userId = '28';
+        $user = User::find($userId);
 
         // Get the users posts with "post_parent = 912", which is identifier for created patient
         $clients = $user->wpposts()->where('post_parent', 912)->where('post_type', 'page')->get();
@@ -567,104 +546,71 @@ class UserController extends Controller
         return $clients;
     }
 
-    public function insertclients($userid, $clients)
+    public function insertClients($userId, $clients)
     {
         foreach ($clients as $client) {
-
-            $newclient = new \App\Client;
-            $newclient->user_id = $userid;
+            $newclient = new Client;
+            $newclient->user_id = $userId;
             $newclient->save();
 
             foreach ($client->wppostmeta as $meta) {
-
                 $newclient->oldid = $meta['post_id'];
                 $newclient->save();
 
                 if ($meta['meta_key'] == "first-name") {
-                    $newclient->firstname = Crypt::encrypt($this->olddecrypt($meta['meta_value']));
+                    $newclient->firstname = Crypt::encrypt($this->oldDecrypt($meta['meta_value']));
                     $newclient->save();
-                }
-
-                if ($meta['meta_key'] == "last-name") {
-                    $newclient->lastname = Crypt::encrypt($this->olddecrypt($meta['meta_value']));
+                } else if ($meta['meta_key'] == "last-name") {
+                    $newclient->lastname = Crypt::encrypt($this->oldDecrypt($meta['meta_value']));
                     $newclient->save();
                 }
 
                 /*if ($meta['meta_key'] == "date-of-birth") {
-
-                        $newclient->born = \Carbon\Carbon::createFromFormat('d/m/Y', $meta['meta_value']);
-                        $newclient->save();
-
+                    $newclient->born = \Carbon\Carbon::createFromFormat('d/m/Y', $meta['meta_value']);
+                    $newclient->save();
                 }*/
 
                 if ($meta['meta_key'] == "date-of-birth") {
                     $newclient->born = $meta['meta_value'];
                     $newclient->save();
-
-                }
-
-                if ($meta['meta_key'] == "social-security-no") {
-                    $newclient->ssn = Crypt::encrypt($this->olddecrypt($meta['meta_value']));
+                } else if ($meta['meta_key'] == "social-security-no") {
+                    $newclient->ssn = Crypt::encrypt($this->oldDecrypt($meta['meta_value']));
                     $newclient->save();
-                }
-
-                if ($meta['meta_key'] == "marital-status") {
-                    $newclient->civil_status = Crypt::encrypt($this->olddecrypt($meta['meta_value']));
+                } else if ($meta['meta_key'] == "marital-status") {
+                    $newclient->civil_status = Crypt::encrypt($this->oldDecrypt($meta['meta_value']));
                     $newclient->save();
-                }
-
-                if ($meta['meta_key'] == "occupation") {
-                    $newclient->work_status = Crypt::encrypt($this->olddecrypt($meta['meta_value']));
+                } else if ($meta['meta_key'] == "occupation") {
+                    $newclient->work_status = Crypt::encrypt($this->oldDecrypt($meta['meta_value']));
                     $newclient->save();
-                }
-
-                if ($meta['meta_key'] == "medication") {
-                    $newclient->medication = Crypt::encrypt($this->olddecrypt($meta['meta_value']));
+                } else if ($meta['meta_key'] == "medication") {
+                    $newclient->medication = Crypt::encrypt($this->oldDecrypt($meta['meta_value']));
                     $newclient->save();
-                }
-
-                if ($meta['meta_key'] == "street-address") {
-                    $newclient->street_address = Crypt::encrypt($this->olddecrypt($meta['meta_value']));
+                } else if ($meta['meta_key'] == "street-address") {
+                    $newclient->street_address = Crypt::encrypt($this->oldDecrypt($meta['meta_value']));
                     $newclient->save();
-                }
-
-                if ($meta['meta_key'] == "zip-code") {
-                    $newclient->postal_code = Crypt::encrypt($this->olddecrypt($meta['meta_value']));
+                } else if ($meta['meta_key'] == "zip-code") {
+                    $newclient->postal_code = Crypt::encrypt($this->oldDecrypt($meta['meta_value']));
                     $newclient->save();
-                }
-
-                if ($meta['meta_key'] == "City") {
-                    $newclient->city = Crypt::encrypt($this->olddecrypt($meta['meta_value']));
+                } else if ($meta['meta_key'] == "City") {
+                    $newclient->city = Crypt::encrypt($this->oldDecrypt($meta['meta_value']));
                     $newclient->save();
-                }
-
-                if ($meta['meta_key'] == "phone1") {
-                    $newclient->phone = Crypt::encrypt($this->olddecrypt($meta['meta_value']));
+                } else if ($meta['meta_key'] == "phone1") {
+                    $newclient->phone = Crypt::encrypt($this->oldDecrypt($meta['meta_value']));
                     $newclient->save();
-                }
-
-                if ($meta['meta_key'] == "closest-relative") {
-                    $newclient->closest_relative = Crypt::encrypt($this->olddecrypt($meta['meta_value']));
+                } else if ($meta['meta_key'] == "closest-relative") {
+                    $newclient->closest_relative = Crypt::encrypt($this->oldDecrypt($meta['meta_value']));
                     $newclient->save();
-                }
-
-                if ($meta['meta_key'] == "phone-number-of-closest-relative") {
-                    $newclient->closest_relative_phone = Crypt::encrypt($this->olddecrypt($meta['meta_value']));
+                } else if ($meta['meta_key'] == "phone-number-of-closest-relative") {
+                    $newclient->closest_relative_phone = Crypt::encrypt($this->oldDecrypt($meta['meta_value']));
                     $newclient->save();
-                }
-
-                if ($meta['meta_key'] == "children") {
-                    $newclient->children = Crypt::encrypt($this->olddecrypt($meta['meta_value']));
+                } else if ($meta['meta_key'] == "children") {
+                    $newclient->children = Crypt::encrypt($this->oldDecrypt($meta['meta_value']));
                     $newclient->save();
-                }
-
-                if ($meta['meta_key'] == "general-practitioner") {
-                    $newclient->gp = Crypt::encrypt($this->olddecrypt($meta['meta_value']));
+                } else if ($meta['meta_key'] == "general-practitioner") {
+                    $newclient->gp = Crypt::encrypt($this->oldDecrypt($meta['meta_value']));
                     $newclient->save();
-                }
-
-                if ($meta['meta_key'] == "individual-plan") {
-                    $newclient->individual_plan = $this->olddecrypt($meta['meta_value']);
+                } else if ($meta['meta_key'] == "individual-plan") {
+                    $newclient->individual_plan = $this->oldDecrypt($meta['meta_value']);
                     $newclient->save();
                 }
 
@@ -675,28 +621,25 @@ class UserController extends Controller
         }
     }
 
-    public function insertwprecord($userid, $wprecord)
+    public function insertWpRecord($userId, $wprecord)
     {
         // FOR TESTING
-        //$userid = '28';
+        // $userId = '28';
 
-        $user = \App\User::find($userid);
-
+        $user = User::find($userId);
         $client = $wprecord->client;
 
-
-        $record = new \App\Record;
+        $record = new Record;
         $record->client_id = $client->id;
         $record->created_by = $user->id;
         $record->oldid = $wprecord->ID;
 
         if ($wprecord->post_excerpt == "") {
             $record->title = Crypt::encrypt("Ingen tittel");
-        }
-        if ($wprecord->post_excerpt !== "") {
+        } else {
             $record->title = Crypt::encrypt($wprecord->post_excerpt);
         }
-        $record->content = Crypt::encrypt($this->olddecrypt($wprecord->post_content));
+        $record->content = Crypt::encrypt($this->oldDecrypt($wprecord->post_content));
         $record->app_date = "";
         $record->created_at = $wprecord->post_date_gmt;
         $record->updated_at = $wprecord->post_modified_gmt;
@@ -720,7 +663,7 @@ class UserController extends Controller
         // Is the record signed or not?
         $meta = $wprecord->wppostmeta;
         foreach ($meta as $meta) {
-            if (($meta['meta_key'] == "_check") AND ($meta['meta_value'] == "1")) {
+            if (($meta['meta_key'] == "_check") || ($meta['meta_value'] == "1")) {
                 $record->signed_date = $wprecord->post_modified_gmt;
                 $record->signed_by = $user->id;
             }
@@ -729,15 +672,13 @@ class UserController extends Controller
         $record->save(['timestamps' => false]);
 
         return $record;
-
     }
 
-    public function findtemplates($userid)
+    public function findTemplates($userId)
     {
         // FOR TESTING
-        //$userid = '2';
-        $user = \App\User::find($userid);
-
+        // $userId = '2';
+        $user = User::find($userId);
 
         // Get the users posts with "post_parent = 912", which is identifier for created patient
         $templates = $user->wpposts()->where('post_status', 'publish')->where('post_parent', 0)->where('post_type', 'post')->get();
@@ -745,85 +686,78 @@ class UserController extends Controller
         return $templates;
     }
 
-    public function inserttemplate($userid, $wptemplate)
+    public function insertTemplate($userId, $wptemplate)
     {
-        $user = \App\User::find($userid);
-
-        $template = new \App\Template;
+        $template = new Template;
         $template->title = $wptemplate->post_title;
-        $template->content = $this->olddecrypt($wptemplate->post_content);
+        $template->content = $this->oldDecrypt($wptemplate->post_content);
         $template->category_id = "1";
-        $template->created_by = $userid;
+        $template->created_by = $userId;
         $template->save();
-
     }
 
-    public function filestobetransferred($userid)
+    public function filesToBeTransferred($userId)
     {
-        $user = \App\User::find($userid);
-
+        $user = User::find($userId);
         $files = $user->wpposts()->where('post_type', 'attachment')->where('post_parent', '!=', '912')->get();
 
         foreach ($files as $file) {
-
-            $awaiting = New \App\Awaitingupload;
-
+            $awaiting = New Awaitingupload;
             $awaiting->client_id = $file->client->id;
             $awaiting->olduser_id = $file->user->oldid;
             $awaiting->oldclient_id = $file->post_parent;
             $awaiting->filename = $file->guid;
-            $awaiting->user_id = $userid;
+            $awaiting->user_id = $userId;
             $awaiting->awaiting = 1;
             $awaiting->save();
         }
     }
 
-    public function insertdiagnoses($userid, $wprecord)
+    public function insertDiagnoses($userId, $wprecord)
     {
-        $awaiting = new \App\Awaitingdiagnoses;
-        $awaiting->user_id = $userid;
+        $awaiting = new Awaitingdiagnoses;
+        $awaiting->user_id = $userId;
         $awaiting->olduser_id = $wprecord->user->oldid;
         $awaiting->client_id = $wprecord->client->id;
         $awaiting->oldclient_id = $wprecord->post_parent;
-        $awaiting->title = $this->olddecrypt($wprecord->post_title);
-        $awaiting->content = $this->olddecrypt($wprecord->post_content);
+        $awaiting->title = $this->oldDecrypt($wprecord->post_title);
+        $awaiting->content = $this->oldDecrypt($wprecord->post_content);
         $awaiting->save();
     }
 
-    public function dbtransfer($email)
+    public function dbTransfer($email)
     {
-        if (\Auth::user()->role !== 2) {
-            return redirect()->route('home')->with('message', 'You are not allowed to perform this operation');
+        if (Auth::user()->role !== 2) {
+            return redirect('/')->with('message', 'You are not allowed to perform this operation');
         }
 
-        //using this for testing
-        //$email = 'katrinerelander@gmail.com';
+        // using this for testing
+        // $email = 'katrinerelander@gmail.com';
 
         // REINSTATE THIS LATER
-        $newuser = $this->syncusers($email);
-        $userid = $newuser->id;
+        $newuser = $this->syncUsers($email);
+        $userId = $newuser->id;
 
-        //using this for testing
-        //$userid = '29';
+        // using this for testing
+        // $userId = '29';
 
-        $templates = $this->findtemplates($userid);
+        $templates = $this->findTemplates($userId);
         foreach ($templates as $wptemplate) {
-            $this->inserttemplate($userid, $wptemplate);
+            $this->insertTemplate($userId, $wptemplate);
         }
 
         // REINSTATE THIS LATER
-        $clients = $this->findclients($userid);
+        $clients = $this->findClients($userId);
 
         // REINSTATE THIS LATER
-        $this->insertclients($userid, $clients);
+        $this->insertClients($userId, $clients);
 
-        $user = \App\User::find($userid);
-        $newclients = $user->clients;
-
+        $user = User::find($userId);
+        $newClients = $user->clients;
 
         // INSERT PATIENT RECORDS
-        foreach ($newclients as $newclient) {
-            $wprecords = $newclient->wprecords()->where('post_type', 'post')->where('post_status', 'publish')->get();
+        foreach ($newClients as $newClient) {
+            $wprecords = $newClient->wprecords()->where('post_type', 'post')->where('post_status', 'publish')->get();
             foreach ($wprecords as $wprecord) {
                 // Do not store if record is not journal note, treatment plan or report
                 if (
@@ -834,54 +768,55 @@ class UserController extends Controller
                 ) {
                     break;
                 }
-                $this->insertwprecord($userid, $wprecord);
+                $this->insertWpRecord($userId, $wprecord);
             }
         }
 
         // INSERT DIAGNOSES
-
-        foreach ($newclients as $newclient) {
-            $wprecords = $newclient->wprecords()->where('post_type', 'post')->where('post_status', 'publish')->get();
+        foreach ($newClients as $newClient) {
+            $wprecords = $newClient->wprecords()->where('post_type', 'post')->where('post_status', 'publish')->get();
 
             foreach ($wprecords as $wprecord) {
                 if ($wprecord->wpterm->term_taxonomy_id == "26") {
-                    $this->insertdiagnoses($userid, $wprecord);
+                    $this->insertDiagnoses($userId, $wprecord);
                 }
             }
         }
 
-        $this->filestobetransferred($userid);
-
+        $this->filesToBeTransferred($userId);
     }
 
-    public function transferall()
+    public function transferAll()
     {
-        if (\Auth::user()->role !== 2) {
-            return redirect()->route('home')->with('message', 'You are not allowed to perform this operation');
+        if (Auth::user()->role !== 2) {
+            return redirect('/')->with('message', 'You are not allowed to perform this operation');
         }
 
         // Remove users "anwar" and "test" manually from wpusers
         // SELECT ALL USER EMAIL ADDRESSES FROM OLD WP DATABASE
-        $emails = \App\Wpuser::select('user_email')->get();
+        $emails = Wpuser::select('user_email')->get();
         // FOR EACH E-MAIL ADDRESS, RUN THE TRANSFER FUNCTION
         foreach ($emails as $email) {
             $address = $email->user_email;
 
-            $this->dbtransfer($address);
+            $this->dbTransfer($address);
         }
 
         return view('dbtransfer.result', compact('clients'));
     }
 
-    public function transferclientrecords(Request $request, $companyid, $userid)
+    public function transferClientRecords(Request $request, $companyId, $userId)
     {
-        if (\Auth::user()->role !== 2) {
-            return redirect()->route('home')->with('message', 'You are not allowed to perform this operation');
+        if (Auth::user()->role !== 2) {
+            return redirect('/')->with('message', 'You are not allowed to perform this operation');
         }
 
         $data = $request->all();
+        $client = Client::find($data['client_id']);
 
-        $client = \App\Client::find($data['client_id']);
+        if (!$client) {
+            return redirect()->back()->with('message', 'There is no client.');
+        }
 
         $wprecords = $client->wprecords()->where('post_type', 'post')->where('post_status', 'publish')->get();
 
@@ -895,35 +830,32 @@ class UserController extends Controller
              ) {
                  break;
              }*/
-            $this->insertwprecord($userid, $wprecord);
+            $this->insertWpRecord($userId, $wprecord);
         }
         return redirect()->back()->with('message', 'Telefonnummer endret');
-
     }
 
-    public function transfersinglewprecord(Request $request, $companyid, $userid)
+    public function transferSingleWprecord(Request $request, $companyId, $userId)
     {
         // FOR TESTING
-        //$userid = '28';
+        // $userid = '28';
 
-        $user = \App\User::find($userid);
-        $data = $request->all();
-        $wprecord = \App\Wpposts::find($request['wprecordid']);
+        $user = User::find($userId);
+        $wprecord = Wpposts::find($request['wprecordid']);
 
         $client = $wprecord->client;
 
-        $record = new \App\Record;
+        $record = new Record;
         $record->client_id = $client->id;
         $record->created_by = $user->id;
         $record->oldid = $wprecord->ID;
 
         if ($wprecord->post_excerpt == "") {
             $record->title = Crypt::encrypt("Ingen tittel");
-        }
-        if ($wprecord->post_excerpt !== "") {
+        } else {
             $record->title = Crypt::encrypt($wprecord->post_excerpt);
         }
-        $record->content = Crypt::encrypt($this->olddecrypt($wprecord->post_content));
+        $record->content = Crypt::encrypt($this->oldDecrypt($wprecord->post_content));
         $record->app_date = "";
         $record->created_at = $wprecord->post_date_gmt;
         $record->updated_at = $wprecord->post_modified_gmt;
@@ -947,7 +879,7 @@ class UserController extends Controller
         // Is the record signed or not?
         $meta = $wprecord->wppostmeta;
         foreach ($meta as $meta) {
-            if (($meta['meta_key'] == "_check") AND ($meta['meta_value'] == "1")) {
+            if (($meta['meta_key'] == "_check") || ($meta['meta_value'] == "1")) {
                 $record->signed_date = $wprecord->post_modified_gmt;
                 $record->signed_by = $user->id;
             }
@@ -956,37 +888,34 @@ class UserController extends Controller
         $record->save(['timestamps' => false]);
 
         return redirect()->back()->with('message', 'Notat overført');
-
     }
 
-
-    public function wpversionhistory()
+    public function wpVersionHistory()
     {
-        if (\Auth::user()->role !== 2) {
-            return redirect()->route('home')->with('message', 'You are not allowed to perform this operation');
+        if (Auth::user()->role !== 2) {
+            return redirect('/')->with('message', 'You are not allowed to perform this operation');
         }
 
-        $newrecordid = 1413;
-        $newrecord = \App\Record::find($newrecordid);
+        $newRecordId = 1413;
+        $newrecord = Record::find($newRecordId);
         $wpid = $newrecord->oldid;
 
-        $revisions = \App\Wpposts::where('post_parent', $wpid)->get();
+        $revisions = Wpposts::where('post_parent', $wpid)->get();
 
         foreach ($revisions as $r) {
-            $r->post_content = strip_tags($this->olddecrypt($r->post_content));
+            $r->post_content = strip_tags($this->oldDecrypt($r->post_content));
         }
 
         return view('records.wphistory', compact('revisions'));
     }
 
-    public function deleteuser($companyid, $userid)
+    public function deleteUser($companyId, $userId)
     {
-        if (\Auth::user()->role !== 2) {
-            return redirect()->route('home')->with('message', 'You are not allowed to perform this operation');
+        if (Auth::user()->role !== 2) {
+            return redirect('/')->with('message', 'You are not allowed to perform this operation');
         }
 
-        $user = \App\User::find($userid);
-
+        $user = User::find($userId);
         $user->active = 0;
 
         function generateRandomString($length = 10) {
@@ -999,9 +928,9 @@ class UserController extends Controller
             return $randomString;
         }
 
-        $newpassword = generateRandomString();
+        $newPassword = generateRandomString();
 
-        $user->password = bcrypt($newpassword);
+        $user->password = bcrypt($newPassword);
         $user->save();
 
         foreach ($user->clients as $client) {
@@ -1048,7 +977,6 @@ class UserController extends Controller
         $user->company_id = 1;
         $user->save();
 
-        return redirect()->route('home')->with('message', 'Brukeren er slettet');
+        return redirect('/')->with('message', 'Brukeren er slettet');
     }
-
 }

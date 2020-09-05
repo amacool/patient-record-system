@@ -2,79 +2,78 @@
 
 @section('content')
 
-    @include('partials.usersidebar')
-    <div class="col-md-10 col-md-offset-3">
+@include('partials.userSidebar')
 
-    <h3>Logg over innloggingsforsøk : {{$user->name}}</h3>
-    <hr/>
+<div class="col-md-10 col-md-offset-3">
+  <h3>{{ __('Logg over innloggingsforsøk : ') }} {{ $user->name }}</h3>
+  <hr />
 
+  <div class="row">
 
-    <div class="row">
+    <table class="table">
+      <caption>1) {{ __('Siste vellykkede innlogginger') }}</caption>
+      <tr>
+        <th>{{ __('Tidspunkt') }}</th>
+        <th>{{ __('IP') }}</th>
+      </tr>
+      @foreach ($logins as $login)
+      <tr>
+        <td>{{ $login->created_at->format('d/m/Y - H:i:s') }}</td>
+        <td>{{ $login->ip }}</td>
+      </tr>
+      @endforeach
+    </table>
 
-            <table class="table">
-                <caption>1) Siste vellykkede innlogginger</caption>
-                <tr>
-                    <th>Tidspunkt</th>
-                    <th>IP</th>
-                </tr>
-                @foreach ($logins as $login)
-                <tr>
-                    <td>{{$login->created_at->format('d/m/Y - H:i:s')}}</td>
-                    <td>{{$login->ip}}</td>
-                </tr>
-                    @endforeach
-            </table>
+    <hr />
 
-            <hr/>
+    <table class="table">
+      <caption>2) {{ __('Siste innloggingsforsøk med riktig brukernavn, men feil passord') }}</caption>
+      <tr>
+        <th>{{ __('Tidspunkt') }}</th>
+        <th>{{ __('IP') }}</th>
+      </tr>
+      @if (!count($wrongPassword))
+      <tr>
+        <td colspan="2">{{ __('Dette har ikke forekommet på din konto') }}</td>
+      </tr>
+      @else
 
+      @foreach ($wrongPassword as $attempt)
+      <tr>
+        <td>{{ $attempt->created_at->format('d/m/Y - H:i:s') }}</td>
+        <td>{{ $attempt->ip }}</td>
+      </tr>
+      @endforeach
 
-            <table class="table">
-                <caption>2) Siste innloggingsforsøk med riktig brukernavn, men feil passord</caption>
-                <tr>
-                    <th>Tidspunkt</th>
-                    <th>IP</th>
-                </tr>
-                @if (!count($wrongpassword))
-                    <tr>
-                        <td colspan="2">Dette har ikke forekommet på din konto</td>
-                    </tr>
-                @else
+      @endif
+    </table>
 
-                @foreach ($wrongpassword as $attempt)
-                    <tr>
-                        <td>{{$attempt->created_at->format('d/m/Y - H:i:s')}}</td>
-                        <td>{{$login->ip}}</td>
-                    </tr>
-                @endforeach
+    <hr />
 
-                    @endif
-            </table>
+    <table class="table">
+      <caption>3) {{ __('Siste innloggingsforsøk med feil sms/app kode.') }}</caption>
 
-            <hr/>
+      <tr>
+        <th>{{ __('Tidspunkt') }}</th>
+        <th>{{ __('IP') }}</th>
+      </tr>
+      @if (!count($crackedPassword))
+      <tr>
+        <td colspan="2">{{ __('Dette har ikke forekommet på din konto') }}</td>
+      </tr>
+      @else
 
+      @foreach ($crackedPassword as $attempt)
+      <tr>
+        <td>{{ $attempt->created_at->format('d/m/Y - H:i:s') }}</td>
+        <td>{{ $attempt->ip }}</td>
+      </tr>
+      @endforeach
 
-            <table class="table">
-                <caption>3) Siste innloggingsforsøk med feil sms/app kode.</caption>
+      @endif
+    </table>
 
-                <tr>
-                    <th>Tidspunkt</th>
-                    <th>IP</th>
-                </tr>
-                @if (!count($crackedpassword))
-                    <tr>
-                    <td colspan="2">Dette har ikke forekommet på din konto</td>
-                    </tr>
-                @else
-
-                @foreach ($crackedpassword as $attempt)
-                    <tr>
-                        <td>{{$attempt->created_at->format('d/m/Y - H:i:s')}}</td>
-                        <td>{{$login->ip}}</td>
-                    </tr>
-                @endforeach
-
-                    @endif
-            </table>
+  </div>
 </div>
 
 @stop

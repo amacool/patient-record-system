@@ -2,11 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use Golonka\BBCode\BBCodeParser;
+use App\Classes\golonka\bbcodeparser\src\BBCodeParser;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use App\Http\Requests;
 use App\Http\Controllers\Controller;
+use App\Client;
+use App\Category;
+use App\Template;
+
 
 class TemplateController extends Controller
 {
@@ -25,7 +30,7 @@ class TemplateController extends Controller
      */
     public function index()
     {
-        $user = \Auth::user();
+        $user = Auth::user();
         $templates = $user->templates;
         return view('templates.index', compact('templates', 'user'));
     }
@@ -37,7 +42,7 @@ class TemplateController extends Controller
      */
     public function create()
     {
-        $categories = \App\Category::lists('title', 'id');
+        $categories = Category::select('title', 'id');
         return view('templates.create', compact('categories'));
     }
 
@@ -49,11 +54,14 @@ class TemplateController extends Controller
      */
     public function store(Requests\CreateTemplateRequest $request)
     {
-        $user = \Auth::user();
+        $user = Auth::user();
         $input = $request->all();
-        $input['content'] = strip_tags($input['content']);
-        $input['created_by'] = $user->id;
-        $template = \App\Template::create($input);
+        $data['title'] = $input['title'];
+        $data['content'] = $input['content'];
+        $data['category_id'] = $input['category_id'];
+        $data['created_by'] = $user->id;
+        Template::create($data);
+
         return redirect()->route('templates.create')->with('message', 'Mal opprettet');
     }
 
@@ -65,31 +73,20 @@ class TemplateController extends Controller
      */
     public function show($id)
     {
-        $user = \Auth::user();
-        $template = \App\Template::find($id);
+        $user = Auth::user();
+        $template = Template::find($id);
 
-        // If the user is the owner of the template, show the page
-        if ($template->created_by == $user->id) {
-
-            $template = \App\Template::find($id);
-            //PARSE THE BBCODE content
-            $parser = new BBCodeParser();
-            $template->content = $parser->parse($template->content);
-            return view('templates.show', compact('template', 'user'));
-        }
-
-        // If the user is a system admin, show the page
-        if ($user->role == 2) {
-
-            $template = \App\Template::find($id);
-            //PARSE THE BBCODE content
+        // If the user is the owner of the template or system admin, show the page
+        if ($template->created_by === $user->id || $user->role === 2) {
+            $template = Template::find($id);
+            // PARSE THE BBCODE content
             $parser = new BBCodeParser();
             $template->content = $parser->parse($template->content);
             return view('templates.show', compact('template', 'user'));
         }
 
         // Else, redirect to home page with warning
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+        return redirect('/')->with('message', 'Du har ikke tilgang.');
     }
 
     /**
@@ -100,21 +97,16 @@ class TemplateController extends Controller
      */
     public function edit($id)
     {
-        $user = \Auth::user();
-        $template = \App\Template::find($id);
+        $user = Auth::user();
+        $template = Template::find($id);
 
-        // If the user is the owner of the template, show the page
-        if ($template->created_by == $user->id) {
-        return view('templates.edit', compact('template'));
-        }
-
-        // If user is system admin, allow
-        if ($user->role == 2) {
+        // If the user is the owner of the template or system admin, show the page
+        if ($template->created_by === $user->id || $user->role === 2) {
             return view('templates.edit', compact('template'));
         }
 
         // Else, redirect to home page with warning
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+        return redirect('/')->with('message', 'Du har ikke tilgang.');
     }
 
     /**
@@ -123,19 +115,19 @@ class TemplateController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function setfavorite(Request $request, $templateid)
+    public function setFavorite(Request $request, $templateId)
     {
-        $user = \Auth::user();
+        $user = Auth::user();
 
-        if ($user->favtemplate == $templateid) {
+        if ($user->favtemplate == $templateId) {
             $user->favtemplate = 0;
             $user->save();
 
             return redirect()->back()->with('message', 'Malen er fjernet som standard');
         }
 
-        if ($user->favtemplat !== $templateid) {
-            $user->favtemplate = $templateid;
+        if ($user->favtemplate !== $templateId) {
+            $user->favtemplate = $templateId;
             $user->save();
 
             return redirect()->back()->with('message', 'Malen brukes nå som standard når du oppretter nye notater');
@@ -151,9 +143,18 @@ class TemplateController extends Controller
      */
     public function update(Requests\CreateTemplateRequest $request, $id)
     {
-        $template = \App\Template::findOrFail($id);
-        $data = $request->all();
-        $data['content'] = strip_tags($data['content']);
+        $user = Auth::user();
+        $template = Template::findOrFail($id);
+
+        // If the user is neither the owner of the template nor system admin, block
+        if ($template->created_by !== $user->id && $user->role !== 2) {
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        $input = $request->all();
+        $data['title'] = $input['title'];
+        $data['content'] = $input['content'];
+        $data['category_id'] = $input['category_id'];
         $template->update($data);
 
         return redirect()->route('templates.show', [$id])->with('message', 'Mal oppdatert');
@@ -166,27 +167,33 @@ class TemplateController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function usetemplate(Request $request, $id)
+    public function useTemplate(Request $request, $id)
     {
         $data = $request->all();
-        $user = \Auth::user();
-        $client = \App\Client::find($id);
+        $user = Auth::user();
+        $client = Client::find($id);
 
-        //DECRYPT DATA TO BE SHOWN
+        // DECRYPT DATA TO BE SHOWN
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
 
-        $template = \App\Template::find($data['template_id']);
+        $template = Template::find($data['template_id']);
 
         if ($template->id !== 4) {
             if ($template->created_by !== $user->id) {
                 // If template does not belong to user, redirect to home page with warning
-                return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+                return redirect('/')->with('message', 'Du har ikke tilgang.');
             }
         }
 
         // Get all template ID's for drop down list
-        $templates = $user->templates()->lists('title', 'id');
+        $templatesArr = $user->templates()->select('title', 'id', 'content')->get();
+        $templates = [];
+
+        foreach ($templatesArr as $templateItem) {
+          $templates[$templateItem->id] = $templateItem->title;
+        }
+
         // Include the empty template shared by all
         $templates[4] = "Empty template";
 
@@ -201,22 +208,16 @@ class TemplateController extends Controller
      */
     public function destroy($id)
     {
-        $user = \Auth::user();
-        $template = \App\Template::find($id);
+        $user = Auth::user();
+        $template = Template::find($id);
 
-        // If the user is the owner of the template, delete the template
-        if ($template->created_by == $user->id) {
-        $template->delete();
-        return redirect()->route('templates.index')->with('message', 'Mal slettet');
-        }
-
-        // If the user is admin, allow
-        if ($user->role == 2) {
+        // If the user is the owner of the template or system admin, delete the template
+        if ($template->created_by === $user->id || $user->role === 2) {
             $template->delete();
             return redirect()->route('templates.index')->with('message', 'Mal slettet');
         }
 
         // Else, redirect to home page with warning
-        return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+        return redirect('/')->with('message', 'Du har ikke tilgang.');
     }
 }

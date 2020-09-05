@@ -5,12 +5,21 @@ namespace App\Http\Controllers;
 use App\Classes\golonka\bbcodeparser\src\BBCodeParser;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use App\Http\Requests;
 use App\Http\Controllers\Controller;
+use App\Http\Traits\CustomAuthTrait;
+use App\Client;
+use App\Template;
+use App\Record;
+use App\Readrecordlog;
+use App\Changerecordlog;
+use App\Signlog;
+
 
 class RecordController extends Controller
 {
-    use CustomTraitAuth;
+    use CustomAuthTrait;
 
     // Only allow logged in users
     public function __construct()
@@ -25,18 +34,18 @@ class RecordController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function index($clientid)
+    public function index($clientId)
     {
-        $client = \App\Client::find($clientid);
+        $client = Client::find($clientId);
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
-        $user = \Auth::user();
+        $user = Auth::user();
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $client->id);
-        if (!$owneroraccess) {
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         $records = $client->records()->orderBy('created_at', 'DESC')->get();
@@ -49,40 +58,45 @@ class RecordController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function create($clientid)
+    public function create($clientId)
     {
-        $client = \App\Client::find($clientid);
-        $user = \Auth::user();
+        $client = Client::find($clientId);
+        $user = Auth::user();
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $client->id);
-        if (!$owneroraccess) {
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         // Get all template ID's for drop down list
-        $templates = $user->templates()->lists('title', 'id');
+        $templatesArr = $user->templates()->select('title', 'id')->get();
+        $templates = [];
+
+        foreach ($templatesArr as $template) {
+          $templates[$template->id] = $template->title;
+        }
+
         // Include the empty template shared by all
         $templates[4] = "Empty template";
 
         // Has the user set a favorite template?
-        if (($user->favtemplate !== 0) OR ($user->favtemplate !== null)) {
+        if (($user->favtemplate !== 0) || ($user->favtemplate !== null)) {
             $templateid = $user->favtemplate;
-            $template = \App\Template::find($templateid);
+            $template = Template::find($templateid);
         }
 
-        if (($user->favtemplate == 0) OR ($user->favtemplate == null))
-        {
+        if (($user->favtemplate === 0) || ($user->favtemplate == null)) {
             // Set the empty template as default chosen in drop down if no template is defined by user
-            $template = \App\Template::find('4');
+            $template = Template::find('4');
         }
 
-        //DECRYPT DATA TO BE SHOWN
+        // DECRYPT DATA TO BE SHOWN
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
 
-        return view('records.create', compact('user', 'client', 'clientid', 'template', 'templates'));
+        return view('records.create', compact('user', 'client', 'clientId', 'template', 'templates'));
     }
 
     /**
@@ -93,28 +107,29 @@ class RecordController extends Controller
      */
     public function store(Requests\CreateRecordRequest $request)
     {
-        $user = \Auth::user();
-        $clientid = $request['client_id'];
-        $client = \App\Client::find($clientid);
+        $user = Auth::user();
+        $clientId = $request['client_id'];
+        $client = Client::find($clientId);
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $client->id);
-        if (!$owneroraccess) {
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         $input = $request->all();
-        $input['created_by'] = \Auth::user()->id;
-        //convert the date for mysql
-        $input['app_date'] = date('Y-m-d',(strtotime($input['app_date'])));
-
+        $data['created_by'] = Auth::user()->id;
+        // convert the date for mysql
+        $data['app_date'] = date('Y-m-d', (strtotime($input['app_date'])));
         // ENCRYPT THE SENSITIVE DATA
-        $input['title'] = Crypt::encrypt($input['title']);
-        $input['content'] = strip_tags($input['content']);
-        $input['content'] = Crypt::encrypt($input['content']);
+        $data['title'] = Crypt::encrypt(strip_tags($input['title']));
+        $data['content'] = Crypt::encrypt(strip_tags($input['content']));
+        $data['oldid'] = 0;
+        $data['category_id'] = 1;
+        $data['client_id'] = $clientId;
 
-        $record = \App\Record::create($input);
+        Record::create($data);
 
         return redirect()->route('clients.records.index', $input['client_id'])->with('message', 'Notat opprettet');
     }
@@ -125,34 +140,37 @@ class RecordController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function show($clientid, $recordid)
+    public function show($clientId, $recordId)
     {
-        $client = \App\Client::find($clientid);
+        $client = Client::find($clientId);
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
-        $user = \Auth::user();
+        $user = Auth::user();
 
-        $record = \App\Record::find($recordid);
-
-        $clientid = $record->client_id;
-
-        // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $clientid);
-        if (!$owneroraccess) {
-            // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+        $record = Record::find($recordId);
+        if (!$record) {
+            return redirect()->back()->with('message', 'No record found!');
         }
 
-        //DECRYPT THE ENCRYPTED DATA
+        $clientId = $record->client_id;
+
+        // Check if the user is the owner of the client, or if he has access through cooperation.
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $clientId);
+        if (!$ownerOrAccess) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        // DECRYPT THE ENCRYPTED DATA
         $record->title = Crypt::decrypt($record->title);
         $record->content = Crypt::decrypt($record->content);
 
-        //PARSE THE BBCODE content
+        // PARSE THE BBCODE content
         $parser = new BBCodeParser();
         $record->content = $parser->parse($record->content);
 
         // Log the event in table 'readrecordlog'
-        $log = new \App\Readrecordlog();
+        $log = new Readrecordlog();
 
         $log->read_by = $user->id;
         $log->client_id = $client->id;
@@ -169,33 +187,42 @@ class RecordController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function printshow($clientid, $recordid)
+    public function printShow($clientId, $recordId)
     {
-        $client = \App\Client::find($clientid);
+        $client = Client::find($clientId);
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
-        $user = \Auth::user();
+        $user = Auth::user();
 
-        $record = \App\Record::find($recordid);
+        $record = Record::find($recordId);
 
-        $clientid = $record->client_id;
+        $clientId = $record->client_id;
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $clientid);
-        if (!$owneroraccess) {
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $clientId);
+        if (!$ownerOrAccess) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
-        //DECRYPT THE ENCRYPTED DATA
+        // DECRYPT THE ENCRYPTED DATA
         $record->title = Crypt::decrypt($record->title);
         $record->content = Crypt::decrypt($record->content);
 
-        //PARSE THE BBCODE content
+        // PARSE THE BBCODE content
         $parser = new BBCodeParser();
         $record->content = $parser->parse($record->content);
 
-            return view('records.printshow', compact('record', 'client'));
+        // Log the event in table 'readrecordlog'
+        $log = new Readrecordlog();
+
+        $log->read_by = $user->id;
+        $log->client_id = $client->id;
+        $log->record_id = $record->id;
+        $log->timestamp = \Carbon\Carbon::now();
+        $log->save();
+
+        return view('records.printShow', compact('record', 'client'));
     }
 
     /**
@@ -204,31 +231,31 @@ class RecordController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function edit($clientid, $recordid)
+    public function edit($clientId, $recordId)
     {
-        $record = \App\Record::find($recordid);
-        $client = \App\Client::find($clientid);
+        $record = Record::find($recordId);
+        $client = Client::find($clientId);
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
-        $user = \Auth::user();
+        $user = Auth::user();
 
         // Check if the user is writer of the note
         $writer = $this->writer($user->id, $record->id);
         if (!$writer) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du kan kun endre notater du selv har skrevet');
+            return redirect('/')->with('message', 'Du kan kun endre notater du selv har skrevet');
         }
-
-        //DECRYPT THE ENCRYPTED DATA
-        $record->title = Crypt::decrypt($record->title);
-        $record->content = Crypt::decrypt($record->content);
 
         // If the record is signed, redirect to home page
         if ($record->signed_by !== null) {
             return redirect()->back()->with('message', 'Notatet er signert og kan ikke endres');
         }
 
-            return view('records.edit', compact('client', 'record'));
+        // DECRYPT THE ENCRYPTED DATA
+        $record->title = Crypt::decrypt($record->title);
+        $record->content = Crypt::decrypt($record->content);
+
+        return view('records.edit', compact('client', 'record'));
     }
 
     /**
@@ -238,65 +265,61 @@ class RecordController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function update(Requests\CreateRecordRequest $request, $clientid, $recordid)
+    public function update(Requests\CreateRecordRequest $request, $clientId, $recordId)
     {
-        $user = \Auth::user();
-        $client = \App\Client::find($clientid);
-        $record = \App\Record::find($recordid);
+        $user = Auth::user();
+        $record = Record::find($recordId);
 
         // Check if the user is writer of the note
         $writer = $this->writer($user->id, $record->id);
         if (!$writer) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du kan kun endre notater du selv har skrevet');
+            return redirect('/')->with('message', 'Du kan kun endre notater du selv har skrevet');
         }
 
-        $record = \App\Record::findOrFail($recordid);
-        $oldrecord = \App\Record::findOrFail($recordid);
+        $record = Record::findOrFail($recordId);
+        $oldRecord = Record::findOrFail($recordId);
 
         $input = $request->all();
 
         // ENCRYPT THE SENSITIVE DATA
-        $input['title'] = Crypt::encrypt($input['title']);
-        $input['content'] = strip_tags($input['content']);
-        $input['content'] = Crypt::encrypt($input['content']);
+        $data['title'] = Crypt::encrypt($input['title']);
+        $data['content'] = Crypt::encrypt($input['content']);
 
-        //convert the date for mysql
-        $input['app_date'] = date('Y-m-d',(strtotime($input['app_date'])));
-        $user = \Auth::user();
+        // convert the date for mysql
+        $data['app_date'] = date('Y-m-d',(strtotime($input['app_date'])));
 
-        $record->update($input);
+        $record->update($data);
 
         // Log the event in table 'readrecordlog'
-        $log = new \App\Changerecordlog;
-
-        $log->created_by = $oldrecord->created_by;
+        $log = new Changerecordlog;
+        $log->created_by = $oldRecord->created_by;
         $log->changed_by = $user->id;
-        $log->client_id = $clientid;
+        $log->client_id = $clientId;
         $log->record_id = $record->id;
-        $log->formertitle = $oldrecord->title;
+        $log->formertitle = $oldRecord->title;
         $log->newtitle = $record->title;
-        $log->formercontent = $oldrecord->content;
+        $log->formercontent = $oldRecord->content;
         $log->newcontent = $record->content;
-        $log->formerapp_date = $oldrecord->app_date;
+        $log->formerapp_date = $oldRecord->app_date;
         $log->newapp_date = $record->app_date;
         $log->timestamp = \Carbon\Carbon::now();
         $log->save();
 
-        return redirect()->route('clients.records.show', [$clientid, $recordid])->with('message', 'Notat endret');
+        return redirect()->route('clients.records.show', [$clientId, $recordId])->with('message', 'Notat endret');
     }
 
     public function sign(Request $request)
     {
         $data = $request->all();
-        $record = \App\Record::find($data['record_id']);
-        $user = \Auth::user();
+        $record = Record::find($data['record_id']);
+        $user = Auth::user();
 
         // Check if the user is writer of the note
         $writer = $this->writer($user->id, $record->id);
         if (!$writer) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du kan kun endre notater du selv har skrevet');
+            return redirect('/')->with('message', 'Du kan kun endre notater du selv har skrevet');
         }
 
         $record->signed_date = \Carbon\Carbon::now();
@@ -306,11 +329,11 @@ class RecordController extends Controller
         $record->save();
 
         // Log the event in table 'signlog'
-        $log = new \App\Signlog;
-
+        $log = new Signlog;
         $log->client_id = $record->client->id;
         $log->record_id = $record->id;
-        $log->signed_by = \Auth::user()->id;
+        $log->signed_by = $user->id;
+        $log->reason = "";
         $log->timestamp = \Carbon\Carbon::now();
         $log->save();
 
@@ -318,71 +341,70 @@ class RecordController extends Controller
     }
 
 
-    public function unsignform($clientid, $recordid)
+    public function unsignForm($clientId, $recordId)
     {
-        $record = \App\Record::find($recordid);
-        $user = \Auth::user();
-        $client = \App\Client::find($clientid);
+        $record = Record::find($recordId);
+        $user = Auth::user();
+        $client = Client::find($clientId);
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $client->id);
-        if (!$owneroraccess) {
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         // Check if the user is writer of the note
         $writer = $this->writer($user->id, $record->id);
         if (!$writer) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du kan kun endre notater du selv har skrevet');
+            return redirect('/')->with('message', 'Du kan kun endre notater du selv har skrevet');
         }
 
         // Check if the record is signed
         if ($record->signed_by == null) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Notatet er ikke signert.');
+            return redirect('/')->with('message', 'Notatet er ikke signert.');
         }
 
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
 
-        return view('records.unsignform', compact('record', 'user', 'client'));
+        return view('records.unsignForm', compact('record', 'user', 'client'));
     }
 
-    public function unsignformpost(Requests\UnsignRequest $request)
+    public function unsignFormPost(Requests\UnsignRequest $request)
     {
         $data = $request->all();
-        $record = \App\Record::find($data['record_id']);
-        $client = \App\Client::find($data['client_id']);
-        $user = \Auth::user();
+        $record = Record::find($data['record_id']);
+        $client = Client::find($data['client_id']);
+        $user = Auth::user();
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $client->id);
-        if (!$owneroraccess) {
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         // Check if the user is writer of the note
         $writer = $this->writer($user->id, $record->id);
         if (!$writer) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du kan kun endre notater du selv har skrevet');
+            return redirect('/')->with('message', 'Du kan kun endre notater du selv har skrevet');
         }
 
-        $record->signed_date = '0000-00-00';
+        $record->signed_date = null;
         $record->signed_by = null;
         // To not make the signing change the "updated_at" column
         $record->timestamps = false;
         $record->save();
 
         // Log the event in table 'signlog'
-        $log = new \App\Signlog;
-
+        $log = new Signlog;
         $log->client_id = $record->client->id;
         $log->record_id = $record->id;
-        $log->unsigned_by = \Auth::user()->id;
+        $log->unsigned_by = Auth::user()->id;
         $log->timestamp = \Carbon\Carbon::now();
         $log->reason = $data['reason'];
         $log->save();
@@ -398,7 +420,6 @@ class RecordController extends Controller
      */
     public function destroy($id)
     {
-        //
     }
 
     /**
@@ -407,37 +428,36 @@ class RecordController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function viewall($clientid)
+    public function viewAll($clientId)
     {
-        $client = \App\Client::find($clientid);
+        $client = Client::find($clientId);
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
-        $user = \Auth::user();
+        $user = Auth::user();
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $client->id);
-        if (!$owneroraccess) {
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         $records = $client->records()->orderBy('created_at', 'ASC')->get();
 
-        //Load parser
+        // Load parser
         $parser = new BBCodeParser();
 
-            foreach ($records as $record) {
-                // Log the event in table 'readrecordlog'
-                $log = new \App\Readrecordlog();
+        foreach ($records as $record) {
+            // Log the event in table 'readrecordlog'
+            $log = new Readrecordlog();
+            $log->read_by = $user->id;
+            $log->client_id = $client->id;
+            $log->record_id = $record->id;
+            $log->timestamp = \Carbon\Carbon::now();
+            $log->save();
+        }
 
-                $log->read_by = $user->id;
-                $log->client_id = $client->id;
-                $log->record_id = $record->id;
-                $log->timestamp = \Carbon\Carbon::now();
-                $log->save();
-            }
-
-            return view('records.viewall', compact('records', 'client', 'parser'));
+        return view('records.viewAll', compact('records', 'client', 'parser'));
     }
 
     /**
@@ -446,81 +466,97 @@ class RecordController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function printall($clientid)
+    public function printAll($clientId)
     {
-        $client = \App\Client::find($clientid);
+        $client = Client::find($clientId);
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
-        $user = \Auth::user();
+        $user = Auth::user();
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $client->id);
-        if (!$owneroraccess) {
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         $records = $client->records()->orderBy('created_at', 'ASC')->get();
 
-        //Load parser
+        // Load parser
         $parser = new BBCodeParser();
+
+        foreach ($records as $record) {
+            // Log the event in table 'readrecordlog'
+            $log = new Readrecordlog();
+            $log->read_by = $user->id;
+            $log->client_id = $client->id;
+            $log->record_id = $record->id;
+            $log->timestamp = \Carbon\Carbon::now();
+            $log->save();
+        }
 
         return view('records.printall', compact('records', 'client', 'parser'));
     }
 
-    public function changehistory($clientid, $recordid)
+    public function changeHistory($clientId, $recordId)
     {
-        $record = \App\Record::find($recordid);
-        $client = \App\Client::find($clientid);
+        $record = Record::find($recordId);
+        $client = Client::find($clientId);
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
-        $user = \Auth::user();
+        $user = Auth::user();
+
+        // Check if the user is the owner of the client, or if he has access through cooperation.
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
 
         // Check if the user is writer of the note
         $writer = $this->writer($user->id, $record->id);
         if (!$writer) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke skrevet dette notatet, og har derfor ikke tilgang');
+            return redirect('/')->with('message', 'Du har ikke skrevet dette notatet, og har derfor ikke tilgang');
         }
 
-        //DECRYPT THE ENCRYPTED DATA FOR THE MAIN RECORD
+        // DECRYPT THE ENCRYPTED DATA FOR THE MAIN RECORD
         $record->title = Crypt::decrypt($record->title);
         $record->content = Crypt::decrypt($record->content);
 
-        //Load parser
+        // Load parser
         $parser = new BBCodeParser();
 
         // Find the earlier versions
-        $earlierversions = \App\Changerecordlog::where('record_id', $recordid)->get();
+        $earlierVersions = Changerecordlog::where('record_id', $recordId)->get();
 
-        return view('records.changehistory', compact('client', 'record', 'parser', 'earlierversions'));
-
+        return view('records.changeHistory', compact('client', 'record', 'parser', 'earlierVersions'));
     }
 
-    public function changehistoryversion($clientid, $recordid, $changerecordid)
+    public function changeHistoryVersion($clientId, $recordId, $changeRecordId)
     {
-        $record = \App\Changerecordlog::find($changerecordid);
-        $client = \App\Client::find($clientid);
+        $record = Changerecordlog::find($changeRecordId);
+        $client = Client::find($clientId);
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
-        $user = \Auth::user();
+        $user = Auth::user();
 
         // Check if the user is writer of the note
-        $writer = $this->allowedversionhistory($user->id, $record->id);
+        $writer = $this->allowedVersionHistory($user->id, $record->id);
         if (!$writer) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke skrevet dette notatet, og har derfor ikke tilgang');
+            return redirect('/')->with('message', 'Du har ikke skrevet dette notatet, og har derfor ikke tilgang');
         }
 
-        //DECRYPT THE ENCRYPTED DATA
+        // DECRYPT THE ENCRYPTED DATA
         $record->formertitle = Crypt::decrypt($record->formertitle);
         $record->formercontent = Crypt::decrypt($record->formercontent);
         $record->newtitle = Crypt::decrypt($record->newtitle);
         $record->newcontent = Crypt::decrypt($record->newcontent);
 
-        //Load parser
+        // Load parser
         $parser = new BBCodeParser();
 
-            return view('records.changehistoryversion', compact('client', 'record', 'parser'));
+        return view('records.changeHistoryVersion', compact('client', 'record', 'parser'));
     }
 }

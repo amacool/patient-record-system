@@ -2,23 +2,21 @@
 
 @section('content')
 
+<div class="col-md-10">
 
+  {{-- <h4>Klient: <a href="{{ route('clients.records.index', $client->id) }}">{{$client->firstname}} {{$client->lastname}}</a>
+  - Endringer gjort {{$record->timestamp->format('d-m-Y, H:i')}} by {{$record->user->name}}
+  </h4>--}}
 
-    <div class="col-md-10">
+  <hr />
+  @foreach ($revisions as $r)
 
-{{--    <h4>Klient: <a href="{{ route('clients.records.index', $client->id) }}">{{$client->firstname}} {{$client->lastname}}</a>
-        - Endringer gjort {{$record->timestamp->format('d-m-Y, H:i')}} by {{$record->user->name}}
-        </h4>--}}
+  {{$r->post_date_gmt}} <br />
+  {{$r->post_content}} <br />
 
-    <hr/>
-    @foreach ($revisions as $r)
+  <hr />
 
-        {{$r->post_date_gmt}} <br/>
-        {{$r->post_content}} <br/>
-
-            <hr/>
-
-    @endforeach
-    </div>
+  @endforeach
+</div>
 
 @stop

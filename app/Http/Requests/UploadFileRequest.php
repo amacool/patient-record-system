@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Request;
+use App\Http\Traits\SanitizeTrait;
 
 class UploadFileRequest extends Request
 {
@@ -36,6 +37,14 @@ class UploadFileRequest extends Request
             'file.mimes' => 'Du kan kun laste opp filer av typen pdf',
             'file.max' => 'Du kan ikke laste opp filer større enn 10 MB',
             'description.required' => 'Du må legge til en beskrivelse av filen',
+            'description.max' => 'Beskrivelsen kan ikke være lengre enn 255 tegn'
         ];
+    }
+
+    protected function prepareForValidation()
+    {
+        $this->merge([
+            'description' => SanitizeTrait::traitMethod($this['description']),
+        ]);
     }
 }

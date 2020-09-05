@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Request;
+use App\Http\Traits\SanitizeTrait;
 
 class ProvideAccessRequest extends Request
 {
@@ -32,6 +33,14 @@ class ProvideAccessRequest extends Request
     {
         return [
             'reason.required' => 'Du må angi en årsak',
+            'reason.max' => 'Beskrivelsen av årsak kan ikke være lengre enn 255 tegn'
         ];
+    }
+
+    protected function prepareForValidation()
+    {
+        $this->merge([
+            'reason' => SanitizeTrait::traitMethod($this->reason),
+        ]);
     }
 }

@@ -1,22 +1,20 @@
 <?php
 
-use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Seeder;
-use Illuminate\Database\Eloquent\Model;
 
 class DatabaseSeeder extends Seeder
 {
     /**
-     * Run the database seeds. updated.
+     * Seed the application's database.
      *
      * @return void
      */
     public function run()
     {
         DB::table('companies')->insert([
-            'id' => '1',
-            'name' => 'Psykologbasen',
-            'seats' => '10',
+          'id' => '1',
+          'name' => 'Psykologbasen',
+          'seats' => '10',
         ]);
 
         DB::table('users')->insert([

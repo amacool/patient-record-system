@@ -2,24 +2,24 @@
 
 @section('content')
 
-    @include('partials.clientsidebar')
+@include('partials.clientSidebar')
 
-    <div class="col-md-9 col-md-offset-3">
+<div class="col-md-9 col-md-offset-3">
 
-    <h2>Endre notatet "{{$record->title}}" for <a href="{{ route('clients.show', $client->id) }}">{{$client->firstname}} {{$client->lastname}}</a></h2>
+  <h2>Endre notatet "{{ $record->title }}" for <a href="{{ route('clients.show', $client->id) }}">{{ $client->firstname }} {{ $client->lastname }}</a></h2>
 
-        <hr/>
+  <hr />
 
-        Du blir automatisk logget ut om: <span class="countdown"></span> . Sørg for at du lagrer notatet før tiden løper ut.
+  Du blir automatisk logget ut om: <span class="countdown"></span> . Sørg for at du lagrer notatet før tiden løper ut.
 
-        <hr>
+  <hr>
 
-    {!! Form::model($record, array('route' => array('clients.records.update', $client->id, $record->id), 'method' => 'put')) !!}
+  {!! Form::model($record, array('route' => array('clients.records.update', $client->id, $record->id), 'method' => 'put')) !!}
 
-    {!! Form::hidden('client_id', $client->id) !!}
-    {!! Form::hidden('category_id', 1) !!}
+  {!! Form::hidden('client_id', $client->id) !!}
+  {!! Form::hidden('category_id', 1) !!}
 
-    {{--<div class="col-md-12">
+  {{--<div class="col-md-12">
 
         <div class="form-group">
             {!! Form::label('category_id', 'Journal note: ') !!}
@@ -31,38 +31,38 @@
         </div>
     </div>--}}
 
-    <div class="col-md-6">
-        <div class="form-group">
-            {!! Form::label('app_date', 'Dato for avtalen: ') !!}
-            {!! Form::text('app_date', $record->app_date->format('d-m-Y'), ['class' => 'form-control']) !!}
-        </div>
+  <div class="col-md-6">
+    <div class="form-group">
+      {!! Form::label('app_date', 'Dato for avtalen: ') !!}
+      {!! Form::text('app_date', $record->app_date->format('d-m-Y'), ['class' => 'form-control']) !!}
     </div>
+  </div>
 
-    <div class="col-md-6">
-        <div class="form-group">
-            {!! Form::label('title', 'Tittel: ') !!}
-            {!! Form::text('title', null, ['class' => 'form-control']) !!}
-        </div>
+  <div class="col-md-6">
+    <div class="form-group">
+      {!! Form::label('title', 'Tittel: ') !!}
+      {!! Form::text('title', null, ['class' => 'form-control']) !!}
     </div>
+  </div>
 
-    <div class="col-md-12">
-        <div class="form-group">
-            {!! Form::label('content', 'Innhold: ') !!}
-            {!! Form::textarea('content', null, ['class' => 'form-control']) !!}
-        </div>
-        <script>
-            // Replace the <textarea id="content"> with a CKEditor
-            // instance, using default configuration.
-            CKEDITOR.replace( 'content' );
-        </script>
+  <div class="col-md-12">
+    <div class="form-group">
+      {!! Form::label('content', 'Innhold: ') !!}
+      {!! Form::textarea('content', null, ['class' => 'form-control']) !!}
     </div>
+    <script>
+      // Replace the <textarea id="content"> with a CKEditor
+      // instance, using default configuration.
+      CKEDITOR.replace('content');
+    </script>
+  </div>
 
 
 
-    <div class="col-md-12">
-        {!! Form::submit('Lagre') !!}
-    </div>
+  <div class="col-md-12">
+    {!! Form::submit('Lagre') !!}
+  </div>
 
-    {!! Form::close() !!}
+  {!! Form::close() !!}
 
-@stop
+  @stop

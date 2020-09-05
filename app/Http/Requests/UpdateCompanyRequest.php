@@ -27,4 +27,12 @@ class UpdateCompanyRequest extends Request
             'seats' => 'required|Numeric'
         ];
     }
+
+    public function messages()
+    {
+        return [
+            'seats.required' => 'Du må oppgi antall brukere',
+            'seats.numeric' => 'Antall brukere må oppgis med siffer'
+        ];
+    }
 }

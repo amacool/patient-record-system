@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Request;
+use App\Http\Traits\SanitizeTrait;
 
 class CreateRecordRequest extends Request
 {
@@ -40,5 +41,13 @@ class CreateRecordRequest extends Request
             'content.required' => 'Notatet må ha innhold før du kan lagre det',
             'content.max' => 'Notatet kan ikke være lengre enn 15000 tegn'
         ];
+    }
+
+    protected function prepareForValidation()
+    {
+        $this->merge([
+            'title' => SanitizeTrait::traitMethod($this->title),
+            'app_date' => SanitizeTrait::traitMethod($this->app_date),
+        ]);
     }
 }

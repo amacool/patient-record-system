@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Request;
+use App\Http\Traits\SanitizeTrait;
 
 class UpdateClientRequest extends Request
 {
@@ -27,83 +28,99 @@ class UpdateClientRequest extends Request
 
             // firstname
             'dhjwhq3v7j' => 'max:18',
-            //lastname
+            // lastname
             '6x93mscfgo' => 'max:50',
-            //born
-            'i2hmibi8a5' => 'date|regex:/\d{1,2}.\d{1,2}.\d{4}/|date_format:d-m-Y',
-            //civil_status
-            'g9npeyap1v' => 'max:100',
-            //work status
-            'vzjvte5v96' => 'string|max:100',
-            //medication
-            'ulij51r2f9' => 'max:255',
-            //street address
-            'gvdd85c01k' => 'string|max:100',
-            //postal code
-            'esrc80j3sc' => 'digits:4',
-            //city
-            '753lqcsbk4' => 'string|max:18',
-            //phone
-            's7tjrdoliy' => 'Numeric',
-            //closest relative
-            '3p1jm4zdyp' => 'string|max:100',
-            //closest relative phone
-            'feucqwf7cx' => 'Numeric',
-            //children
-            '7hvwzk7f7t' => 'string|max:100',
-            //gp
-            '241i88imq9' => 'string|max:100',
-            //individual plan
-            'wlj5betr3c' => 'string|max:18',
-            //other info
-            'cya9753ajt' => 'string|max:1000',
-            //ssn
-            '0rpk6x0uoe' => 'digits:5'
+            // born
+            'i2hmibi8a5' => 'date_format:d.m.Y',
+            // ssn
+            '0rpk6x0uoe' => 'digits:5',
+            // civil_status
+            'g9npeyap1v' => 'nullable|max:100',
+            // work status
+            'vzjvte5v96' => 'nullable|string|max:100',
+            // medication
+            'ulij51r2f9' => 'nullable|max:255',
+            // street address
+            'gvdd85c01k' => 'nullable|string|max:100',
+            // postal code
+            'esrc80j3sc' => 'nullable|digits:4',
+            // city
+            '753lqcsbk4' => 'nullable|string|max:18',
+            // phone
+            's7tjrdoliy' => 'nullable|Numeric',
+            // closest relative
+            '3p1jm4zdyp' => 'nullable|string|max:100',
+            // closest relative phone
+            'feucqwf7cx' => 'nullable|Numeric',
+            // children
+            '7hvwzk7f7t' => 'nullable|string|max:100',
+            // gp
+            '241i88imq9' => 'nullable|string|max:100',
+            // individual plan
+            'wlj5betr3c' => 'nullable|string|max:18',
+            // other info
+            'cya9753ajt' => 'nullable|string|max:1000'
         ];
     }
 
     public function messages()
     {
         return [
-            //firstname
+            // firstname
             'dhjwhq3v7j.max' => 'Fornavnet kan ha maksimalt 18 bokstaver',
-            //lastname
+            // lastname
             '6x93mscfgo.max' => 'Etternavnet kan ha maksimalt 50 bokstaver',
-            //ssn
+            // ssn
             '0rpk6x0uoe.required' => 'Du må angi et fødselsnummer',
             '0rpk6x0uoe.digits' => 'Fødselsnummeret må ha 5 tall',
-            //born
-            'i2hmibi8a5.date' => 'Du må angi en fødselsdato i formatet dd.mm.åååå',
+            // born
             'i2hmibi8a5.date_format' => 'Fødselsdatoen må angis i formatet dd.mm.åååå',
-            'i2hmibi8a5.regex' => 'Formatet for fødselsdato er ikke akseptert. Bruk dd.mm.åååå',
-            //civil status
+            // civil status
             'g9npeyap1v.max' => 'Svilstatus kan ha maksimalt 100 bokstaver',
-            //work status
+            // work status
             'vzjvte5v96.max' => 'Arbeidsstatus kan ha maksimalt 100 bokstaver',
-            //medication
+            // medication
             'ulij51r2f9.max' => 'Medisiner kan ha maksimalt 255 bokstaver',
-            //street address
+            // street address
             'gvdd85c01k.max' => 'Adressefeltet kan ha maksimalt 100 bokstaver',
-            //postal code
+            // postal code
             'esrc80j3sc.digits' => 'Postkoden må bestå av fire tall',
-            //city
+            // city
             '753lqcsbk4.max' => 'By kan ha maksimalt 18 bokstaver',
-            //phone
+            // phone
             's7tjrdoliy.numeric' => 'Telefonnummeret må bestå av kun tall',
-            //closest relative
+            // closest relative
             '3p1jm4zdyp.max' => 'Nærmeste pårørende kan ha maksimalt 100 bokstaver',
-            //closest relative phone numer
+            // closest relative phone numer
             'feucqwf7cx.numeric' => 'Telefonnummeret til nærmeste pårørende må bestå av kun tall',
-            //children
+            // children
             '7hvwzk7f7t.max' => 'Feltet for barn kan ha maksimalt 100 bokstaver',
-            //gp
+            // gp
             '241i88imq9.max' => 'Feltet for fastlege kan ha maksimalt 100 bokstaver',
-            //individual plan
+            // individual plan
             'wlj5betr3c.max' => 'Feltet for individuellplan kan ha maksimalt 18 bokstaver',
-            //other info
+            // other info
             'cya9753ajt.max' => 'Feltet for annen informasjon kan ha maksimalt 1000 bokstaver',
-            //ssn
+            // ssn
             '0rpk6x0uoe.digits' => 'Fødselsnummeret må ha 5 tall'
         ];
+    }
+
+    protected function prepareForValidation()
+    {
+        $this->merge([
+            'dhjwhq3v7j' => SanitizeTrait::traitMethod($this['dhjwhq3v7j']),
+            '6x93mscfgo' => SanitizeTrait::traitMethod($this['6x93mscfgo']),
+            'g9npeyap1v' => SanitizeTrait::traitMethod($this['g9npeyap1v']),
+            'vzjvte5v96' => SanitizeTrait::traitMethod($this['vzjvte5v96']),
+            'ulij51r2f9' => SanitizeTrait::traitMethod($this['ulij51r2f9']),
+            'gvdd85c01k' => SanitizeTrait::traitMethod($this['gvdd85c01k']),
+            '753lqcsbk4' => SanitizeTrait::traitMethod($this['753lqcsbk4']),
+            '3p1jm4zdyp' => SanitizeTrait::traitMethod($this['3p1jm4zdyp']),
+            '7hvwzk7f7t' => SanitizeTrait::traitMethod($this['7hvwzk7f7t']),
+            '241i88imq9' => SanitizeTrait::traitMethod($this['241i88imq9']),
+            'wlj5betr3c' => SanitizeTrait::traitMethod($this['wlj5betr3c']),
+            'cya9753ajt' => SanitizeTrait::traitMethod($this['cya9753ajt']),
+        ]);
     }
 }

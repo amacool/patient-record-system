@@ -4,12 +4,21 @@ namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use App\Http\Requests;
 use App\Http\Controllers\Controller;
+use App\Http\Traits\CustomAuthTrait;
+use App\Http\Traits\SanitizeTrait;
+use App\Client;
+use App\User;
+use App\Transfer;
+use App\Accessright;
+
 
 class ClientController extends Controller
 {
-    use CustomTraitAuth;
+    use CustomAuthTrait;
+    use SanitizeTrait;
 
     // Only allow logged in users
     public function __construct()
@@ -24,13 +33,11 @@ class ClientController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function archiveindex()
+    public function archiveIndex()
     {
-        $user = \Auth::User();
+        $user = Auth::User();
 
-        if ($user->suspended !== "0000-00-00") {
-            return redirect()->route('home')->with('message', 'Tilgangen din har blitt begrenset på grunn av mangelfull betaling');
-        }
+        $this->checkSuspended($user->id, true);
 
         $clients = $user->clients()->where('active', '0')->orderBy('lastname', 'ASC')->get();
 
@@ -40,7 +47,7 @@ class ClientController extends Controller
 
         $clients = $clients->sortBy('lastname');
 
-        return view('clients.archiveindex', compact('clients'));
+        return view('clients.archiveIndex', compact('clients'));
     }
 
     /**
@@ -48,31 +55,66 @@ class ClientController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function archivemove(Request $request)
+    public function archiveMove(Request $request)
     {
         $data = $request->all();
-        $user = \Auth::User();
-        $client = \App\Client::find($data['client_id']);
+        $user = Auth::User();
+        $client = Client::find($data['client_id']);
 
-        // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $client->id);
-        if (!$owneroraccess) {
-            // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+        // No matching client
+        if (!$client) {
+            return redirect('/')->with('message', 'Ingen matchende klient');
         }
 
-            if ($client->active == '0') {
-                $client->active = '1';
-                $client->save();
-                return redirect()->route('clients.archiveindex')->with('message', 'Klienten er nå aktiv');
-            }
+        // Check if the user is the owner of the client, or if he has access through cooperation.
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
 
-            if ($client->active == '1') {
-                $client->active = '0';
-                $client->save();
-                return redirect()->route('clients.index')->with('message', 'Klienten er flyttet til arkivet');
-            }
+        if ($client->active === 0) {
+            $client->active = 1;
+            $client->save();
+            return redirect()->route('clients.archive_index')->with('message', 'Klienten er nå aktiv');
+        }
+
+        if ($client->active === 1) {
+            $client->active = 0;
+            $client->save();
+            return redirect()->route('clients.index')->with('message', 'Klienten er flyttet til arkivet');
+        }
     }
+
+    /**
+     * Remove a client from the company
+     *
+     * @return \Illuminate\Http\Response
+     */
+    // public function archiveRemove(Request $request)
+    // {
+    //     $data = $request->all();
+    //     $user = Auth::User();
+    //     $client = Client::find($data['client_id']);
+
+    //     // No matching client
+    //     if (!$client) {
+    //         return redirect('/')->with('message', 'Ingen matchende klient');
+    //     }
+
+    //     // Check if the user is the owner of the client, or if he has access through cooperation.
+    //     $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+    //     if (!$ownerOrAccess) {
+    //         // If not, redirect to home page with warning
+    //         return redirect('/')->with('message', 'Du har ikke tilgang.');
+    //     }
+
+    //     // remove related data - records, ...
+
+    //     // remove client
+    //     $client->delete();
+    //     return redirect()->route('clients.archive_index')->with('message', 'Du har ikke tilgang.');
+    // }
 
     /**
      * Page for showing the access rights for a specific client
@@ -81,14 +123,19 @@ class ClientController extends Controller
      */
     public function access($id)
     {
-        $user = \Auth::user();
-        $client = \App\Client::find($id);
+        $user = Auth::user();
+        $client = Client::find($id);
+
+        // No matching client
+        if (!$client) {
+            return redirect('/')->with('message', 'Ingen matchende klient');
+        }
 
         // Check if the user is the owner of the client
         $owner = $this->owner($user->id, $client->id);
         if (!$owner) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         $client->firstname = Crypt::decrypt($client->firstname);
@@ -102,64 +149,69 @@ class ClientController extends Controller
         }
 
         $company = $user->company;
-        $restofcompany = $company->user()->wherenotIn('id', $id)->get();
+        $othersInCompany = $company->user()->wherenotIn('id', $id)->get();
 
-        return view('clients.access', compact('client', 'coopusers', 'restofcompany'));
+        return view('clients.access', compact('client', 'coopusers', 'othersInCompany'));
     }
 
-    public function accessform($clientid, $userid)
+    public function accessForm($clientId, $userId)
     {
-        $loggedinuser = \Auth::user();
-        $user = \App\User::find($userid);
-        $client = \App\Client::find($clientid);
+        $loggedInUser = Auth::user();
+        $user = User::find($userId);
+        $client = Client::find($clientId);
+
+        // No matching client
+        if (!$client) {
+            return redirect('/')->with('message', 'Ingen matchende klient');
+        }
 
         // Check if the user is the owner of the client
-        $owner = $this->owner($loggedinuser->id, $client->id);
+        $owner = $this->owner($loggedInUser->id, $client->id);
         if (!$owner) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         // Check if the other user is in loggedinusers company
-        $incompany = $this->incompany($loggedinuser->id, $user->id);
-        if (!$incompany) {
+        $inCompany = $this->inCompany($loggedInUser->id, $user->id);
+        if (!$inCompany) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
 
-        return view('clients.accessform', compact('client', 'user'));
+        return view('clients.accessForm', compact('client', 'user'));
     }
 
-    public function accessformpost(Requests\ProvideAccessRequest $request)
+    public function accessFormPost(Requests\ProvideAccessRequest $request)
     {
         $data = $request->all();
-        $loggedinuser = \Auth::user();
-        $client = \App\Client::find($data['client_id']);
-        $user = \App\User::find($data['user_id']);
+        $loggedInUser = Auth::user();
+        $client = Client::find($data['client_id']);
+        $user = User::find($data['user_id']);
 
         // Check if the user is the owner of the client
-        $owner = $this->owner($loggedinuser->id, $client->id);
+        $owner = $this->owner($loggedInUser->id, $client->id);
         if (!$owner) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         // Check if the other user is in loggedinusers company
-        $incompany = $this->incompany($loggedinuser->id, $user->id);
-        if (!$incompany) {
+        $inCompany = $this->inCompany($loggedInUser->id, $user->id);
+        if (!$inCompany) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         $client->user()->attach($user->id);
 
         // Log the event in table 'accessrights'
-        $log = new \App\Accessright;
+        $log = new Accessright;
 
-        $log->given_by = $loggedinuser->id;
+        $log->given_by = $loggedInUser->id;
         $log->user_id = $user->id;
         $log->client_id = $client->id;
         $log->reason = $data['reason'];
@@ -167,87 +219,86 @@ class ClientController extends Controller
         $log->save();
 
         return redirect()->route('clients.access', [$client->id])->with('message', 'Tilganger endret');
-
     }
 
-    public function removeaccessform($clientid, $userid)
+    public function removeAccessForm($clientId, $userId)
     {
-        $loggedinuser = \Auth::user();
-        $user = \App\User::find($userid);
-        $client = \App\Client::find($clientid);
+        $loggedInUser = Auth::user();
+        $user = User::find($userId);
+        $client = Client::find($clientId);
 
         // Check if the user is the owner of the client
-        $owner = $this->owner($loggedinuser->id, $client->id);
+        $owner = $this->owner($loggedInUser->id, $client->id);
         if (!$owner) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         // Check if the other user is in loggedinusers company
-        $incompany = $this->incompany($loggedinuser->id, $user->id);
-        if (!$incompany) {
+        $inCompany = $this->inCompany($loggedInUser->id, $user->id);
+        if (!$inCompany) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
-        $iscoopclient = $this->cooperativeaccess($userid, $clientid);
-        if (!$iscoopclient){
+        $isCoopClient = $this->cooperativeAccess($userId, $clientId);
+        if (!$isCoopClient) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
 
-            return view('clients.removeaccessform', compact('client', 'user'));
+        return view('clients.removeAccessForm', compact('client', 'user'));
     }
 
-    public function removeaccessformpost(Requests\ProvideAccessRequest $request)
+    public function removeAccessFormPost(Requests\ProvideAccessRequest $request)
     {
         $data = $request->all();
-        $loggedinuser = \Auth::user();
-        $client = \App\Client::find($data['client_id']);
-        $user = \App\User::find($data['user_id']);
+        $loggedInUser = Auth::user();
+        $client = Client::find($data['client_id']);
+        $user = User::find($data['user_id']);
 
         // Check if the user is the owner of the client
-        $owner = $this->owner($loggedinuser->id, $client->id);
+        $owner = $this->owner($loggedInUser->id, $client->id);
         if (!$owner) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         // Check if the other user is in loggedinusers company
-        $incompany = $this->incompany($loggedinuser->id, $user->id);
-        if (!$incompany) {
+        $inCompany = $this->inCompany($loggedInUser->id, $user->id);
+        if (!$inCompany) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
-            $client->user()->detach($user->id);
+        $client->user()->detach($user->id);
 
-            // Log the event in table 'accessrights'
-            $log = new \App\Accessright;
+        // Log the event in table 'accessrights'
+        $log = new Accessright;
 
-            $log->revoked_by = $loggedinuser->id;
-            $log->user_id = $user->id;
-            $log->client_id = $client->id;
-            $log->reason = $data['reason'];
-            $log->datetime = \Carbon\Carbon::now();
-            $log->save();
+        $log->revoked_by = $loggedInUser->id;
+        $log->user_id = $user->id;
+        $log->client_id = $client->id;
+        $log->reason = $data['reason'];
+        $log->datetime = \Carbon\Carbon::now();
+        $log->save();
 
-            return redirect()->route('clients.access', [$client->id])->with('message', 'Tilganger endret');
+        return redirect()->route('clients.access', [$client->id])->with('message', 'Tilganger endret');
     }
 
     public function transfer($id)
     {
-        $user = \Auth::user();
-        $client = \App\Client::find($id);
+        $user = Auth::user();
+        $client = Client::find($id);
 
         // Check if the user is the owner of the client
         $owner = $this->owner($user->id, $client->id);
         if (!$owner) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         $client->firstname = Crypt::decrypt($client->firstname);
@@ -263,72 +314,69 @@ class ClientController extends Controller
         $company = $user->company;
         $restofcompany = $company->user()->wherenotIn('id', $id)->get();
 
-            return view('clients.transfer', compact('client', 'coopusers', 'restofcompany'));
+        return view('clients.transfer', compact('client', 'coopusers', 'restofcompany'));
     }
 
-    public function transferform($clientid, $userid)
+    public function transferForm($clientId, $userId)
     {
-        $loggedinuser = \Auth::user();
-        $user = \App\User::find($userid);
-        $client = \App\Client::find($clientid);
+        $loggedInUser = Auth::user();
+        $user = User::find($userId);
+        $client = Client::find($clientId);
 
         // Check if the user is the owner of the client
-        $owner = $this->owner($loggedinuser->id, $client->id);
+        $owner = $this->owner($loggedInUser->id, $client->id);
         if (!$owner) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         // Check if the other user is in loggedinusers company
-        $incompany = $this->incompany($loggedinuser->id, $user->id);
-        if (!$incompany) {
+        $inCompany = $this->inCompany($loggedInUser->id, $user->id);
+        if (!$inCompany) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
-
 
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
 
-            return view('clients.transferform', compact('client', 'user'));
+        return view('clients.transferForm', compact('client', 'user'));
     }
 
-    public function transferformpost(Requests\ProvideAccessRequest $request)
+    public function transferFormPost(Requests\ProvideAccessRequest $request)
     {
         $data = $request->all();
-        $loggedinuser = \Auth::user();
-        $client = \App\Client::find($data['client_id']);
-        $user = \App\User::find($data['user_id']);
+        $loggedInUser = Auth::user();
+        $client = Client::find($data['client_id']);
+        $user = User::find($data['user_id']);
 
         // Check if the user is the owner of the client
-        $owner = $this->owner($loggedinuser->id, $client->id);
+        $owner = $this->owner($loggedInUser->id, $client->id);
         if (!$owner) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         // Check if the other user is in loggedinusers company
-        $incompany = $this->incompany($loggedinuser->id, $user->id);
-        if (!$incompany) {
+        $inCompany = $this->inCompany($loggedInUser->id, $user->id);
+        if (!$inCompany) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
         $client->user_id = $data['user_id'];
         $client->save();
 
         // Log the event!!
-        $log = new \App\Transfer;
-
-        $log->transferred_by = $loggedinuser->id;
+        $log = new Transfer;
+        $log->transferred_by = $loggedInUser->id;
         $log->transferred_to = $user->id;
         $log->client_id = $client->id;
         $log->reason = $data['reason'];
         $log->datetime = \Carbon\Carbon::now();
         $log->save();
 
-        return redirect()->route('clients.index', [$loggedinuser->id])->with('message', 'Klient overflyttet');
-
+        return redirect()->route('clients.index', [$loggedInUser->id])->with('message', 'Klient overflyttet');
     }
 
     /**
@@ -338,19 +386,17 @@ class ClientController extends Controller
      */
     public function logs($id)
     {
-        $user = \Auth::user();
+        $user = Auth::user();
 
-        if ($user->suspended !== "0000-00-00") {
-            return redirect()->route('home')->with('message', 'Tilgangen din er begrenset på grunn av mangelfull betaling');
+        $this->checkSuspended($user->id, true);
+
+        $client = Client::find($id);
+
+        if (Auth::user()->role !== 2) {
+            return redirect('/')->with('message', 'You are not allowed to perform this operation');
         }
 
-        $client = \App\Client::find($id);
-
-        if (\Auth::user()->role !== 2) {
-            return redirect()->route('home')->with('message', 'You are not allowed to perform this operation');
-        }
-
-        //DECRYPT THE ENCRYPTED CLIENT INFO
+        // DECRYPT THE ENCRYPTED CLIENT INFO
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
         $client->ssn = Crypt::decrypt($client->ssn);
@@ -365,16 +411,13 @@ class ClientController extends Controller
      */
     public function index()
     {
-        $user = \Auth::User();
+        $user = Auth::User();
 
-        if ($user->suspended !== "0000-00-00") {
-            return redirect()->route('home')->with('message', 'Tilgangen din er begrenset på grunn av mangelfull betaling');
-        }
+        $this->checkSuspended($user->id, true);
 
         $clients = $user->clients()->where('active', '1')->orderBy('lastname', 'ASC')->get();
-
         foreach ($clients as $client) {
-            $client->lastname = Crypt::decrypt($client->lastname);
+          $client->lastname = Crypt::decrypt($client->lastname);
         }
 
         $clients = $clients->sortBy('lastname');
@@ -382,23 +425,20 @@ class ClientController extends Controller
         return view('clients.index', compact('clients'));
     }
 
-    public function coopindex()
+    public function coopIndex()
     {
-        $user = \Auth::User();
+        $user = Auth::User();
 
-        if ($user->suspended !== "0000-00-00") {
-            return redirect()->route('home')->with('message', 'Tilgangen din er begrenset på grunn av mangelfull betaling');
-        }
+        $this->checkSuspended($user->id, true);
 
         $clients = $user->coopclients()->orderBy('lastname', 'ASC')->get();
-
         foreach ($clients as $client) {
             $client->lastname = Crypt::decrypt($client->lastname);
         }
 
         $clients = $clients->sortBy('lastname');
 
-        return view('clients.coopindex', compact('clients'));
+        return view('clients.coopIndex', compact('clients'));
     }
 
     /**
@@ -408,11 +448,9 @@ class ClientController extends Controller
      */
     public function create()
     {
-        $user = \Auth::user();
+        $user = Auth::user();
 
-        if ($user->suspended !== "0000-00-00") {
-            return redirect()->route('home')->with('message', 'Tilgangen din er begrenset på grunn av mangelfull betaling');
-        }
+        $this->checkSuspended($user->id, true);
 
         return view('clients.create');
     }
@@ -425,52 +463,55 @@ class ClientController extends Controller
      */
     public function store(Requests\CreateClientRequest $request)
     {
-        $user = \Auth::User();
+        $user = Auth::User();
 
         $input = $request->all();
-        $input2 = [];
 
-        //saving the "born" date in separate variable
+        // saving the "born" date in separate variable
         $dateToSave = \Carbon\Carbon::createFromFormat('d.m.Y', $input['i2hmibi8a5']);
 
         $input2['user_id'] = $user->id;
-        //firstname below
+        // firstname below
         $input2['firstname'] = Crypt::encrypt($input['dhjwhq3v7j']);
-        //lastname below
+        // lastname below
         $input2['lastname'] = Crypt::encrypt($input['6x93mscfgo']);
-        //born below
+        // born below
         $input2['born'] = $dateToSave->format('Y-m-d');
-        //ssn below
+        // ssn below
         $input2['ssn'] = Crypt::encrypt($input['0rpk6x0uoe']);
-        //civil status belos
+        // civil status belos
         $input2['civil_status'] = Crypt::encrypt($input['g9npeyap1v']);
-        //work status below
+        // work status below
         $input2['work_status'] = Crypt::encrypt($input['vzjvte5v96']);
-        //medication below
+        // medication below
         $input2['medication'] = Crypt::encrypt($input['ulij51r2f9']);
-        //street address below
+        // street address below
         $input2['street_address'] = Crypt::encrypt($input['gvdd85c01k']);
-        //postal code below
+        // postal code below
         $input2['postal_code'] = Crypt::encrypt($input['esrc80j3sc']);
-        //city below
+        // city below
         $input2['city'] = Crypt::encrypt($input['753lqcsbk4']);
-        //phone below
+        // phone below
         $input2['phone'] = Crypt::encrypt($input['s7tjrdoliy']);
-        //closest relative below
+        // closest relative below
         $input2['closest_relative'] = Crypt::encrypt($input['3p1jm4zdyp']);
-        //closest relative phone below
+        // closest relative phone below
         $input2['closest_relative_phone'] = Crypt::encrypt($input['feucqwf7cx']);
-        //children below
+        // children below
         $input2['children'] = Crypt::encrypt($input['7hvwzk7f7t']);
-        //gp below
+        // gp below
         $input2['gp'] = Crypt::encrypt($input['241i88imq9']);
-        /*//individual plan below
-        $input2['individual_plan'] = Crypt::encrypt($input['wlj5betr3c']);*/
-        //other_info below
+
+        // individual plan below
+        // $input2['individual_plan'] = Crypt::encrypt($input['wlj5betr3c']);
+
+        // other_info below
         $input2['other_info'] = Crypt::encrypt($input['cya9753ajt']);
         $input2['active'] = 1;
+        $input2['oldid'] = 0;
+        $input2['individual_plan'] = '';
 
-        $client = \App\Client::create($input2);
+        $client = Client::create($input2);
         return redirect()->route('clients.show', $client->id)->with('message', 'Klient opprettet');
     }
 
@@ -482,22 +523,20 @@ class ClientController extends Controller
      */
     public function show($id)
     {
-        $user = \Auth::user();
+        $user = Auth::user();
 
-        if ($user->suspended !== "0000-00-00") {
-            return redirect()->route('home')->with('message', 'Tilgangen din er begrenset på grunn av mangelfull betaling');
-        }
+        $this->checkSuspended($user->id, true);
 
-        $client = \App\Client::find($id);
+        $client = Client::find($id);
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $client->id);
-        if (!$owneroraccess) {
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
-        //DECRYPT THE ENCRYPTED CLIENT INFO
+        // DECRYPT THE ENCRYPTED CLIENT INFO
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
         $client->ssn = Crypt::decrypt($client->ssn);
@@ -512,10 +551,10 @@ class ClientController extends Controller
         $client->closest_relative_phone = Crypt::decrypt($client->closest_relative_phone);
         $client->children = Crypt::decrypt($client->children);
         $client->gp = Crypt::decrypt($client->gp);
-        //$client->individual_plan = Crypt::decrypt($client->individual_plan);
+        // $client->individual_plan = Crypt::decrypt($client->individual_plan);
         $client->other_info = Crypt::decrypt($client->other_info);
 
-            return view('clients.show', compact('client'));
+        return view('clients.show', compact('client'));
     }
 
     /**
@@ -526,22 +565,20 @@ class ClientController extends Controller
      */
     public function edit($id)
     {
-        $user = \Auth::user();
+        $user = Auth::user();
 
-        if ($user->suspended !== "0000-00-00") {
-            return redirect()->route('home')->with('message', 'Tilgangen din er begrenset på grunn av mangelfull betaling');
-        }
+        $this->checkSuspended($user->id, true);
 
-        $client = \App\Client::find($id);
+        $client = Client::find($id);
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $client->id);
-        if (!$owneroraccess) {
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
-        //DECRYPT THE ENCRYPTED CLIENT INFO
+        // DECRYPT THE ENCRYPTED CLIENT INFO
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
         $client->ssn = Crypt::decrypt($client->ssn);
@@ -556,7 +593,7 @@ class ClientController extends Controller
         $client->closest_relative_phone = Crypt::decrypt($client->closest_relative_phone);
         $client->children = Crypt::decrypt($client->children);
         $client->gp = Crypt::decrypt($client->gp);
-        //$client->individual_plan = Crypt::decrypt($client->individual_plan);
+        // $client->individual_plan = Crypt::decrypt($client->individual_plan);
         $client->other_info = Crypt::decrypt($client->other_info);
 
         return view('clients.edit', compact('client', 'user'));
@@ -571,19 +608,20 @@ class ClientController extends Controller
      */
     public function update(Requests\UpdateClientRequest $request, $id)
     {
-        $user = \Auth::user();
-        $client = \App\Client::find($id);
+        $user = Auth::user();
+        $client = Client::find($id);
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
-        $owneroraccess = $this->owneroraccess($user->id, $client->id);
-        if (!$owneroraccess) {
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
             // If not, redirect to home page with warning
-            return redirect()->route('home')->with('message', 'Du har ikke tilgang.');
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
         }
 
-            $input = $request->all();
+        $prevSSN = Crypt::decrypt($client->ssn);
+        $input = $request->all();
 
-            // ENCRYPTION
+        // ENCRYPTION
         $input2['civil_status'] = Crypt::encrypt($input['g9npeyap1v']);
         $input2['work_status'] = Crypt::encrypt($input['vzjvte5v96']);
         $input2['medication'] = Crypt::encrypt($input['ulij51r2f9']);
@@ -596,33 +634,28 @@ class ClientController extends Controller
         $input2['children'] = Crypt::encrypt($input['7hvwzk7f7t']);
         $input2['gp'] = Crypt::encrypt($input['241i88imq9']);
         $input2['other_info'] = Crypt::encrypt($input['cya9753ajt']);
-        //$input2['individual_plan'] = $input['wlj5betr3c'];
+        // $input2['individual_plan'] = $input['wlj5betr3c'];
 
-        if ($request->has('0rpk6x0uoe')) {
+        if ($request->has('0rpk6x0uoe') && ($user->role === 2 || $prevSSN === '11111')) {
             $input2['ssn'] = Crypt::encrypt($input['0rpk6x0uoe']);
         }
 
-        if ($request->has('dhjwhq3v7j')) {
+        if ($request->has('dhjwhq3v7j') && $user->role === 2) {
             $input2['firstname'] = Crypt::encrypt($input['dhjwhq3v7j']);
         }
 
-        if ($request->has('6x93mscfgo')) {
+        if ($request->has('6x93mscfgo') && $user->role === 2) {
             $input2['lastname'] = Crypt::encrypt($input['6x93mscfgo']);
         }
 
-        if ($request->has('i2hmibi8a5')) {
-
-            //saving the "born" date in separate variable
-            $dateToSave = \Carbon\Carbon::createFromFormat('d-m-Y', $input['i2hmibi8a5']);
-
+        if ($request->has('i2hmibi8a5') && $user->role === 2) {
+            // saving the "born" date in separate variable
+            $dateToSave = \Carbon\Carbon::createFromFormat('d.m.Y', $input['i2hmibi8a5']);
             $input2['born'] = $dateToSave->format('Y-m-d');
-
         }
 
-            //UPDATE
-            $client->update($input2);
-
-            return redirect()->route('clients.show', [$id])->with('message', 'Personlig informasjon oppdatert');
+        $client->update($input2);
+        return redirect()->route('clients.show', [$id])->with('message', 'Personlig informasjon oppdatert');
     }
 
     /**
@@ -633,6 +666,5 @@ class ClientController extends Controller
      */
     public function destroy($id)
     {
-        //
     }
 }

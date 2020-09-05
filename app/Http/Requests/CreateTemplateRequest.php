@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Request;
+use App\Http\Traits\SanitizeTrait;
 
 class CreateTemplateRequest extends Request
 {
@@ -35,6 +36,14 @@ class CreateTemplateRequest extends Request
             'title.required' => 'Malen må ha en tittel',
             'title.max' => 'Tittelen kan ha max 30 tegn',
             'content.required' => 'Malen må ha innhold før du kan lagre den',
+            'content.max' => 'Innholdet i malen kan ikke være lengre enn 10 000 tegn'
         ];
+    }
+
+    protected function prepareForValidation()
+    {
+        $this->merge([
+            'title' => SanitizeTrait::traitMethod($this->title),
+        ]);
     }
 }

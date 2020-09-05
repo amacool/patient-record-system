@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'failed' => 'Kombinasjonen er feil.',
-    'throttle' => 'For mange innloggingsforøk. Du kan prøve igjen om :seconds sekunder.',
+    'failed' => 'These credentials do not match our records.',
+    'throttle' => 'Too many login attempts. Please try again in :seconds seconds.',
 
 ];

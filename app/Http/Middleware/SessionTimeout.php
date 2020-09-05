@@ -1,7 +1,7 @@
 <?php namespace App\Http\Middleware;
 
-use Illuminate\Support\Facades\Session;
 use Closure;
+use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Session\Store;
 
@@ -37,12 +37,14 @@ class SessionTimeout {
             $logoutlog = new \App\Logout;
             $logoutlog->user_id = $user->id;
             $logoutlog->auto = 'yes';
+            $logoutlog->manual = '';
+            $logoutlog->ip = $request->getClientIp();
             $logoutlog->save();
 
             $this->session->forget('lastActivityTime');
             Auth::logout();
             Session::flush();
-            return redirect()->route('loginpage')->with('message', 'Du ble automatisk logget ut på grunn av '.$this->timeout/60 .' minutters inaktivitet.');
+            return redirect()->route('login-page')->with('message', 'Du ble automatisk logget ut på grunn av '.$this->timeout/60 .' minutters inaktivitet.');
         }
         $this->session->put('lastActivityTime',time());
         return $next($request);

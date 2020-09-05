@@ -2,7 +2,7 @@
 
 @section('content')
 
-    <h1>DB TRANSFER</h1>
+<h1>DB TRANSFER</h1>
 
 Transfer complete
 
