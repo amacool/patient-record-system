@@ -2,8 +2,8 @@
 
 @section('content')
 
-@include('partials.confirmDelete')
-@include('partials.companiesSidebar')
+@include('partials.confirmdelete')
+@include('partials.companiessidebar')
 <div class="col-md-10">
 
   <h4>Alle registrerte firma</h4>

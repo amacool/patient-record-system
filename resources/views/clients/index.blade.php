@@ -2,9 +2,9 @@
 
 @section('content')
 
-@include('partials.confirmDelete')
+@include('partials.confirmdelete')
 
-@include('partials.clientsSidebar')
+@include('partials.clientssidebar')
 
 {{--<div class="alert alert-danger" role="alert">
         04.07.18: PLANLAGT VEDLIKEHOLD: På grunn av arbeid på serveren vil journalsystemet være ustabilt

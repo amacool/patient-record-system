@@ -2,7 +2,7 @@
 
 @section('content')
 
-@include('partials.companySidebar')
+@include('partials.companysidebar')
 <div class="col-md-10">
 
   <table class="table">

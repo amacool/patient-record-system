@@ -462,7 +462,7 @@ class UserController extends Controller
         $this->checkSuspended($loggedInUser->id, true);
 
         if ($loggedInUser->role === 2 || $userId == $loggedInUser->id) {
-            return view('users.accessAndTransfers', compact('user', 'company'));
+            return view('users.accessandtransfers', compact('user', 'company'));
         }
 
         // Else, redirect to home page

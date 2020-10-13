@@ -2,9 +2,9 @@
 
 @section('content')
 
-@include('partials.confirmDelete')
+@include('partials.confirmdelete')
 
-@include('partials.clientsSidebar')
+@include('partials.clientssidebar')
 
 <h1>Klienter i mitt arkiv (ikke aktive)</h1>
 

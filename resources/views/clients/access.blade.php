@@ -2,7 +2,7 @@
 
 @section('content')
 
-@include('partials.clientSidebar')
+@include('partials.clientsidebar')
 
 <div class="col-md-9 col-md-offset-3">
   <h4>Endre tilganger for <a href="{{ route('clients.show', $client->id) }}">{{ $client->firstname }} {{ $client->lastname }}</a></h4>

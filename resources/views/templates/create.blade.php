@@ -1,7 +1,7 @@
 @extends('layout')
 
 @section('content')
-@include('partials.templateSidebar')
+@include('partials.templatesidebar')
 <div class="col-md-10">
 
   <h4>Opprett ny mal</h4>
@@ -17,7 +17,7 @@
           </div>
       </div>--}}
 
-    @include('partials.createTemplateForm')
+    @include('partials.createtemplateform')
 
   {!! Form::close() !!}
 

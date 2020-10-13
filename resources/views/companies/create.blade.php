@@ -2,7 +2,7 @@
 
 @section('content')
 
-@include('partials.companiesSidebar')
+@include('partials.companiessidebar')
 <div class="col-md-10 col-md-offset-3">
 
   <h4>Registrer et nytt firma</h4>
@@ -10,7 +10,7 @@
 
   {!! Form::open(array('route' => 'companies.store')) !!}
 
-  @include('partials.createCompanyForm')
+  @include('partials.createcompanyform')
 
   {!! Form::close() !!}
 

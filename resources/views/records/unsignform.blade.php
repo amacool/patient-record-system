@@ -2,7 +2,7 @@
 
 @section('content')
 
-@include('partials.clientSidebar')
+@include('partials.clientsidebar')
 
 <div class="col-md-8 col-md-offset-3">
 

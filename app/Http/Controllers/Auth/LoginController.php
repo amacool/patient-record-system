@@ -160,7 +160,7 @@ class LoginController extends Controller
             return redirect('auth/login');
         }
 
-        return view('auth/twoFactor');
+        return view('auth/twofactor');
     }
 
     // AUTHY verify when two factor form is posted
