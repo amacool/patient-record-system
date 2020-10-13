@@ -250,7 +250,7 @@ class ClientController extends Controller
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
 
-        return view('clients.removeaccessForm', compact('client', 'user'));
+        return view('clients.removeaccessform', compact('client', 'user'));
     }
 
     public function removeAccessFormPost(Requests\ProvideAccessRequest $request)
