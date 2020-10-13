@@ -2,7 +2,7 @@
 
 @section('content')
 
-@include('partials.companySidebar')
+@include('partials.companysidebar')
 <div class="col-md-10">
 
   <h4>{{ __('Registrer en ny bruker for firmaet') }} {{ $company->name }}</h4>

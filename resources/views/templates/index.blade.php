@@ -2,8 +2,8 @@
 
 @section('content')
 
-@include('partials.confirmDelete')
-@include('partials.templateSidebar')
+@include('partials.confirmdelete')
+@include('partials.templatesidebar')
 
 <div class="col-md-10">
 

@@ -98,7 +98,7 @@
   <div class="container">
 
     <div class="col-md-10 col-md-offset-2">
-      @include('partials.errorSandMessages')
+      @include('partials.errorsandmessages')
 
       @if (Auth::user())
 

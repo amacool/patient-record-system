@@ -47,7 +47,7 @@ class ClientController extends Controller
 
         $clients = $clients->sortBy('lastname');
 
-        return view('clients.archiveIndex', compact('clients'));
+        return view('clients.archiveindex', compact('clients'));
     }
 
     /**
@@ -182,7 +182,7 @@ class ClientController extends Controller
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
 
-        return view('clients.accessForm', compact('client', 'user'));
+        return view('clients.accessform', compact('client', 'user'));
     }
 
     public function accessFormPost(Requests\ProvideAccessRequest $request)
@@ -250,7 +250,7 @@ class ClientController extends Controller
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
 
-        return view('clients.removeAccessForm', compact('client', 'user'));
+        return view('clients.removeaccessForm', compact('client', 'user'));
     }
 
     public function removeAccessFormPost(Requests\ProvideAccessRequest $request)
@@ -340,7 +340,7 @@ class ClientController extends Controller
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
 
-        return view('clients.transferForm', compact('client', 'user'));
+        return view('clients.transferform', compact('client', 'user'));
     }
 
     public function transferFormPost(Requests\ProvideAccessRequest $request)
@@ -438,7 +438,7 @@ class ClientController extends Controller
 
         $clients = $clients->sortBy('lastname');
 
-        return view('clients.coopIndex', compact('clients'));
+        return view('clients.coopindex', compact('clients'));
     }
 
     /**

@@ -2,7 +2,7 @@
 
 @section('content')
 
-@include('partials.userSidebar')
+@include('partials.usersidebar')
 <div class="col-md-10 col-md-offset-3">
 
   <h3>{{ __('Innstillinger for ') }} {{ $user->name }}</h3>

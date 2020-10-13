@@ -222,7 +222,7 @@ class RecordController extends Controller
         $log->timestamp = \Carbon\Carbon::now();
         $log->save();
 
-        return view('records.printShow', compact('record', 'client'));
+        return view('records.printshow', compact('record', 'client'));
     }
 
     /**
@@ -370,7 +370,7 @@ class RecordController extends Controller
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
 
-        return view('records.unsignForm', compact('record', 'user', 'client'));
+        return view('records.unsignform', compact('record', 'user', 'client'));
     }
 
     public function unsignFormPost(Requests\UnsignRequest $request)
@@ -457,7 +457,7 @@ class RecordController extends Controller
             $log->save();
         }
 
-        return view('records.viewAll', compact('records', 'client', 'parser'));
+        return view('records.viewall', compact('records', 'client', 'parser'));
     }
 
     /**
@@ -530,7 +530,7 @@ class RecordController extends Controller
         // Find the earlier versions
         $earlierVersions = Changerecordlog::where('record_id', $recordId)->get();
 
-        return view('records.changeHistory', compact('client', 'record', 'parser', 'earlierVersions'));
+        return view('records.changehistory', compact('client', 'record', 'parser', 'earlierVersions'));
     }
 
     public function changeHistoryVersion($clientId, $recordId, $changeRecordId)
@@ -557,6 +557,6 @@ class RecordController extends Controller
         // Load parser
         $parser = new BBCodeParser();
 
-        return view('records.changeHistoryVersion', compact('client', 'record', 'parser'));
+        return view('records.changehistoryversion', compact('client', 'record', 'parser'));
     }
 }

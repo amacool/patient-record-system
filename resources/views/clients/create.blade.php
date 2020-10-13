@@ -2,7 +2,7 @@
 
 @section('content')
 
-@include('partials.clientsSidebar')
+@include('partials.clientssidebar')
 
 <h4>Registrer en ny klient</h4>
 <hr />
@@ -54,7 +54,7 @@
     <h4>Valgfrie felt</h4>
   </div>
 
-  @include('partials.createClientForm')
+  @include('partials.createclientform')
 
 {!! Form::close() !!}
 

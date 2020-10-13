@@ -2,7 +2,7 @@
 
 @section('content')
 
-@include('partials.templateSidebar')
+@include('partials.templatesidebar')
 <div class="col-md-10">
 
   <div class="panel panel-default">

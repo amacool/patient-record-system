@@ -2,9 +2,9 @@
 
 @section('content')
 
-@include('partials.confirmDelete')
+@include('partials.confirmdelete')
 
-@include('partials.clientsSidebar')
+@include('partials.clientssidebar')
 
 
 <h1>Tilganger jeg har blitt gitt av andre
