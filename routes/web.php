@@ -125,7 +125,7 @@ Route::resource('companies.users', 'UserController');
 // Routes for working with clients, including records and files
 Route::prefix('clients')->group(function () {
   // ONLY FOR ADMIN: Shows all the clients in the system
-  Route::get('index', array('as' => 'clients.all', 'uses' => 'ClientController@getAllClients'));
+  Route::get('show-all-clients', array('as' => 'clients.all', 'uses' => 'ClientController@getAllClients'));
   // Logged-in-user: see clients where user has been given coop-access
   Route::get('cooperation-access', array('as' => 'clients.coop_index', 'uses' => 'ClientController@coopIndex'));
   // Logged-in-user: see own active clients

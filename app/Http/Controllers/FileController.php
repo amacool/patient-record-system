@@ -27,8 +27,10 @@ class FileController extends Controller
         $this->middleware('revalidate', ['except' => ['download']]);
     }
 
+    // FIRST METHODS FOR RESOURCE CONTROLLER
+    
     /**
-     * Display a listing of the resource.
+     * Display a list of files connected to a specific client.
      *
      * @return \Illuminate\Http\Response
      */
@@ -51,7 +53,7 @@ class FileController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Show the form for uploading a new file for a specific client
      *
      * @return \Illuminate\Http\Response
      */
@@ -76,7 +78,8 @@ class FileController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Store a pdf-file and a reference to this file in the database. 
+     * The file will be connected to a specific client
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
@@ -168,7 +171,7 @@ class FileController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * The show-method is not relevant here. It is replaced by "download" (see below)
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
@@ -178,7 +181,7 @@ class FileController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * The edit-method currently does nothing. Might be relevant to change file title at later stage.
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
@@ -188,7 +191,7 @@ class FileController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * The update-method currently does nothing. Might be relevant to change file title at later stage.
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  int  $id
@@ -199,7 +202,20 @@ class FileController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * The destroy-method currently does nothing here. Might be relevant to allow deleting files at later stage.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function destroy($id)
+    {
+    }
+    
+    
+    // THEN CUSTOM METHODS
+    
+    /**
+     * Decrypt and show a specific pdf-file in the browser.
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  int  $id
@@ -265,13 +281,5 @@ class FileController extends Controller
     }
 
 
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy($id)
-    {
-    }
+    
 }

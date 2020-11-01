@@ -30,8 +30,10 @@ class RecordController extends Controller
         $this->middleware('revalidate');
     }
 
+    // FIRST METHODS FOR RESOURCE CONTROLLER (index, create, store, show, edit, update, destroy)
+
     /**
-     * Display a listing of the resource.
+     * Show a list (summary) of records for a specific client
      *
      * @return \Illuminate\Http\Response
      */
@@ -56,7 +58,7 @@ class RecordController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Show the page for creating a new record for a specific client
      *
      * @return \Illuminate\Http\Response
      */
@@ -103,7 +105,7 @@ class RecordController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Store a new record for a specific client
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
@@ -138,7 +140,7 @@ class RecordController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * Show the contents of a specific record
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
@@ -185,51 +187,7 @@ class RecordController extends Controller
     }
 
     /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function printShow($clientId, $recordId)
-    {
-        $client = Client::find($clientId);
-        $client->firstname = Crypt::decrypt($client->firstname);
-        $client->lastname = Crypt::decrypt($client->lastname);
-        $user = Auth::user();
-
-        $record = Record::find($recordId);
-
-        $clientId = $record->client_id;
-
-        // Check if the user is the owner of the client, or if he has access through cooperation.
-        $ownerOrAccess = $this->ownerOrAccess($user->id, $clientId);
-        if (!$ownerOrAccess) {
-            // If not, redirect to home page with warning
-            return redirect('/')->with('message', 'Du har ikke tilgang.');
-        }
-
-        // DECRYPT THE ENCRYPTED DATA
-        $record->title = Crypt::decrypt($record->title);
-        $record->content = Crypt::decrypt($record->content);
-
-        // PARSE THE BBCODE content
-        $parser = new BBCodeParser();
-        $record->content = $parser->parse($record->content);
-
-        // Log the event in table 'readrecordlog'
-        $log = new Readrecordlog();
-
-        $log->read_by = $user->id;
-        $log->client_id = $client->id;
-        $log->record_id = $record->id;
-        $log->timestamp = \Carbon\Carbon::now();
-        $log->save();
-
-        return view('records.printshow', compact('record', 'client'));
-    }
-
-    /**
-     * Show the form for editing the specified resource.
+     * Show the page for editing an existing record
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
@@ -262,7 +220,7 @@ class RecordController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * Store the update to an existing record and log the previous version
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  int  $id
@@ -312,6 +270,70 @@ class RecordController extends Controller
         return redirect()->route('clients.records.show', [$clientId, $recordId])->with('message', 'Notat endret');
     }
 
+    /**
+     * The destroy-method currently does nothing
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function destroy($id)
+    {
+    }
+
+
+    // CUSTOM METHODS THAT DO NOT BELONG TO THE RESOURCE ROUTES
+
+    /**
+     * Display printer-friendly view of a specific record
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function printShow($clientId, $recordId)
+    {
+        $client = Client::find($clientId);
+        $client->firstname = Crypt::decrypt($client->firstname);
+        $client->lastname = Crypt::decrypt($client->lastname);
+        $user = Auth::user();
+
+        $record = Record::find($recordId);
+
+        $clientId = $record->client_id;
+
+        // Check if the user is the owner of the client, or if he has access through cooperation.
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $clientId);
+        if (!$ownerOrAccess) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        // DECRYPT THE ENCRYPTED DATA
+        $record->title = Crypt::decrypt($record->title);
+        $record->content = Crypt::decrypt($record->content);
+
+        // PARSE THE BBCODE content
+        $parser = new BBCodeParser();
+        $record->content = $parser->parse($record->content);
+
+        // Log the event in table 'readrecordlog'
+        $log = new Readrecordlog();
+
+        $log->read_by = $user->id;
+        $log->client_id = $client->id;
+        $log->record_id = $record->id;
+        $log->timestamp = \Carbon\Carbon::now();
+        $log->save();
+
+        return view('records.printshow', compact('record', 'client'));
+    }
+
+    /**
+     * Mark a record as signed and log the event
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+
     public function sign(Request $request)
     {
         $data = $request->all();
@@ -343,6 +365,12 @@ class RecordController extends Controller
         return redirect()->route('clients.records.index', [$data['client_id']])->with('message', 'Notat signert');
     }
 
+    /**
+     * Form for providing a reason for unsigning a record that has previously been signed
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
 
     public function unsignForm($clientId, $recordId)
     {
@@ -376,6 +404,13 @@ class RecordController extends Controller
         return view('records.unsignForm', compact('record', 'user', 'client'));
     }
 
+    /**
+     * Mark a record as unsigned and log the event (including reason)
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    
     public function unsignFormPost(Requests\UnsignRequest $request)
     {
         $data = $request->all();
@@ -414,19 +449,9 @@ class RecordController extends Controller
 
         return redirect()->route('clients.records.index', [$data['client_id']])->with('message', 'Notat åpnet');
     }
-
+    
     /**
-     * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy($id)
-    {
-    }
-
-    /**
-     * Display the specified resource.
+     * Display the content of all records for a specific client
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
@@ -465,7 +490,8 @@ class RecordController extends Controller
     }
 
     /**
-     * Export all view of records to pdf.
+     * Export all view of records to pdf. 01.11.20: I dont think this method is in use.
+     * Export functionality is handled through CompanyController
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  int  $id
@@ -500,7 +526,7 @@ class RecordController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * Printer-friendly view of the contents of all records for a specific client
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
@@ -537,6 +563,13 @@ class RecordController extends Controller
         return view('records.printall', compact('records', 'client', 'parser'));
     }
 
+    /**
+     * Show a summary of which changes a specific record has undegone (how many versions there has been etc.)
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    
     public function changeHistory($clientId, $recordId)
     {
         $record = Record::find($recordId);
@@ -572,6 +605,13 @@ class RecordController extends Controller
         return view('records.changehistory', compact('client', 'record', 'parser', 'earlierVersions'));
     }
 
+    /**
+     * Show specific changes between two versions of a record
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    
     public function changeHistoryVersion($clientId, $recordId, $changeRecordId)
     {
         $record = Changerecordlog::find($changeRecordId);
@@ -599,6 +639,13 @@ class RecordController extends Controller
         return view('records.changehistoryversion', compact('client', 'record', 'parser'));
     }
 
+    /**
+     * Show a page where the admin can choose to move a specific record to another specific client
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    
     public function move($clientId, $recordId, Request $request)
     {
         $user = Auth::user();
@@ -621,6 +668,13 @@ class RecordController extends Controller
         return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
+    /**
+     * Move a record from one client to another
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    
     public function movePost(Request $request, $clientId, $recordId, $receiverId)
     {
         $user = Auth::user();

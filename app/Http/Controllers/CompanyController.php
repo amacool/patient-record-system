@@ -27,8 +27,11 @@ class CompanyController extends Controller
         $this->middleware('revalidate');
     }
 
+    
+    // FIRST METHODS FOR RESOURCE CONTROLLER
+    
     /**
-     * Display a listing of the resource.
+     * Display a list of all companies in the system
      *
      * @return \Illuminate\Http\Response
      */
@@ -53,7 +56,7 @@ class CompanyController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Show the form for creating a new company.
      *
      * @return \Illuminate\Http\Response
      */
@@ -71,7 +74,7 @@ class CompanyController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Store a newly created company
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
@@ -96,7 +99,7 @@ class CompanyController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * Display the specified company.
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
@@ -124,7 +127,7 @@ class CompanyController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * Show the form for editing the specified company.
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
@@ -152,7 +155,7 @@ class CompanyController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * Update the specified company.
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  int  $id
@@ -206,8 +209,12 @@ class CompanyController extends Controller
         return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
+    // Destroy-method does not exist
+    
+    // NOW CUSTOM METHODS NOT PART OF THE RESOURCE CONTROLLER
+    
     /**
-     * Show the form for exporting companies.
+     * Show the form for exporting data from a company.
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response

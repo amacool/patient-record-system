@@ -29,8 +29,10 @@ class ClientController extends Controller
         $this->middleware('revalidate');
     }
 
+    // FIRST THE RELEVANT RESOURCE CONTROLLERS
+    
     /**
-     * View clients for a logged in user
+     * View clients for a logged in user. This method shows ALL clients the user has access to
      *
      * @return \Illuminate\Http\Response
      */
@@ -53,539 +55,7 @@ class ClientController extends Controller
     }
 
     /**
-     * View active clients for a logged in user
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function activeIndex()
-    {
-        $user = Auth::User();
-
-        $this->checkSuspended($user->id, true);
-
-        $clients = $user->clients()->where('active', '1')->orderBy('lastname', 'ASC')->get();
-
-        foreach ($clients as $client) {
-            $client->lastname = Crypt::decrypt($client->lastname);
-        }
-
-        $clients = $clients->sortBy('lastname');
-
-        return view('clients.activeIndex', compact('clients'));
-    }
-
-    /**
-     * View archived clients for a logged in user
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function archiveIndex()
-    {
-        $user = Auth::User();
-
-        $this->checkSuspended($user->id, true);
-
-        $clients = $user->clients()->where('active', '0')->orderBy('lastname', 'ASC')->get();
-
-        foreach ($clients as $client) {
-            $client->lastname = Crypt::decrypt($client->lastname);
-        }
-
-        $clients = $clients->sortBy('lastname');
-
-        return view('clients.archiveIndex', compact('clients'));
-    }
-
-    /**
-     * View own cooperation clients
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function coopIndex()
-    {
-        $user = Auth::User();
-
-        $this->checkSuspended($user->id, true);
-
-        $clients = $user->coopclients()->orderBy('lastname', 'ASC')->get();
-        foreach ($clients as $client) {
-            $client->lastname = Crypt::decrypt($client->lastname);
-        }
-
-        $clients = $clients->sortBy('lastname');
-
-        return view('clients.coopIndex', compact('clients'));
-    }
-
-    /**
-     * Role: Admin(all), Company Admin(own company)
-     * View clients for any company
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function getClientsInCompany($companyId)
-    {
-        $user = Auth::User();
-        $company = Company::find($companyId);
-
-        $this->checkSuspended($user->id, true);
-
-        if ($user->role === 2 || ($user->role === 1 && $user->company_id === $company->id)) {
-            $users = $company->user;
-            $user_ids = [];
-            foreach ($users as $user) {
-                array_push($user_ids, $user->id);
-            }
-            $clients = Client::whereIn('user_id', $user_ids)->get();
-
-            foreach ($clients as $client) {
-                $client->lastname = Crypt::decrypt($client->lastname);
-            }
-
-            $clients = $clients->sortBy('lastname');
-            return view('companies.clients', compact('company', 'clients'));
-        }
-
-        // Else, redirect to home page
-        return redirect('/')->with('message', 'Du har ikke tilgang');
-    }
-
-    /**
-     * Role: Admin
-     * View all clients in system
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function getAllClients()
-    {
-        $user = Auth::User();
-
-        $this->checkSuspended($user->id, true);
-
-        if ($user->role === 2) {
-            $clients = Client::simplePaginate(30);
-            foreach ($clients as $client) {
-                $client->lastname = Crypt::decrypt($client->lastname);
-            }
-
-            return view('clients.all', compact('clients'));
-        }
-
-        // Else, redirect to home page
-        return redirect('/')->with('message', 'Du har ikke tilgang');
-    }
-
-    /**
-     * Role: Admin(all), Company Admin(users in own company)
-     * View active clients for any user
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function getActiveClientsForUser($companyId, $userId)
-    {
-        $loggedInUser = Auth::User();
-        $user = User::find($userId);
-        $company = Company::find($companyId);
-
-        $this->checkSuspended($loggedInUser->id, true);
-
-        if ($loggedInUser->role === 2 || ($loggedInUser->role === 1 && $loggedInUser->company_id === $user->company_id && $loggedInUser->company_id === $company->id)) {
-            $clients = $user->clients()->where('active', 1)->get();
-
-            foreach ($clients as $client) {
-                $client->lastname = Crypt::decrypt($client->lastname);
-            }
-
-            $clients = $clients->sortBy('lastname');
-            return view('users.activeClients', compact('company', 'user', 'clients'));
-        }
-
-        // Else, redirect to home page
-        return redirect('/')->with('message', 'Du har ikke tilgang');
-    }
-
-    /**
-     * Role: Admin(all), Company Admin(users in own company)
-     * View archived clients for any user
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function getArchiveClientsForUser($companyId, $userId)
-    {
-        $loggedInUser = Auth::User();
-        $company = Company::find($companyId);
-        $user = User::find($userId);
-
-        $this->checkSuspended($loggedInUser->id, true);
-
-        if ($loggedInUser->role === 2 || ($loggedInUser->role === 1 && $loggedInUser->company_id === $user->company_id && $loggedInUser->company_id === $company->id)) {
-            $clients = $user->clients()->where('active', 0)->get();
-
-            foreach ($clients as $client) {
-                $client->lastname = Crypt::decrypt($client->lastname);
-            }
-
-            $clients = $clients->sortBy('lastname');
-            return view('users.archiveClients', compact('company', 'user', 'clients'));
-        }
-
-        // Else, redirect to home page
-        return redirect('/')->with('message', 'Du har ikke tilgang');
-    }
-
-    /**
-     * Role: Admin(all), Company Admin(users in own company)
-     * View coop clients for any user
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function getCoopClientsForUser($companyId, $userId)
-    {
-        $loggedInUser = Auth::User();
-        $company = Company::find($companyId);
-        $user = User::find($userId);
-
-        $this->checkSuspended($loggedInUser->id, true);
-
-        if ($loggedInUser->role === 2 || ($loggedInUser->role === 1 && $loggedInUser->company_id === $user->company_id && $loggedInUser->company_id === $company->id)) {
-            $coopClients = $user->coopClients;
-
-            return view('users.coopClients', compact('company', 'user', 'coopClients'));
-        }
-
-        // Else, redirect to home page
-        return redirect('/')->with('message', 'Du har ikke tilgang');
-    }
-
-    /**
-     * Move a client between active and archive status
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function archiveMove(Request $request)
-    {
-        $data = $request->all();
-        $user = Auth::User();
-        $client = Client::find($data['client_id']);
-
-        // No matching client
-        if (!$client) {
-            return redirect('/')->with('message', 'Ingen matchende klient');
-        }
-
-        // Check if the user is the owner of the client, or if he has access through cooperation.
-        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
-        if (!$ownerOrAccess) {
-            // If not, redirect to home page with warning
-            return redirect('/')->with('message', 'Du har ikke tilgang.');
-        }
-
-        if ($client->active === 0) {
-            $client->active = 1;
-            $client->save();
-            return redirect()->route('clients.archive_index')->with('message', 'Klienten er nå aktiv');
-        }
-
-        if ($client->active === 1) {
-            $client->active = 0;
-            $client->save();
-            return redirect()->route('clients.active_index')->with('message', 'Klienten er flyttet til arkivet');
-        }
-    }
-    
-
-    /**
-     * Page for showing the access rights for a specific client
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function access($id)
-    {
-        $user = Auth::user();
-        $client = Client::find($id);
-
-        // No matching client
-        if (!$client) {
-            return redirect('/')->with('message', 'Ingen matchende klient');
-        }
-
-        // Check if the user is the owner of the client
-        $owner = $this->owner($user->id, $client->id);
-        if (!$owner && ($user->role !== 1 || $user->company_id !== $client->owner->company_id)) {
-            // If not, redirect to home page with warning
-            return redirect('/')->with('message', 'Du har ikke tilgang.');
-        }
-
-        $client->firstname = Crypt::decrypt($client->firstname);
-        $client->lastname = Crypt::decrypt($client->lastname);
-        $coopusers = $client->user;
-
-        $id = [];
-
-        foreach ($coopusers as $coopuser) {
-            $id[] = $coopuser->id;
-        }
-
-        $company = $user->company;
-
-        if ($user->role === 2) {
-            $otherUsers = User::wherenotIn('id', $id)->get();
-        } else {
-            $otherUsers = $company->user()->wherenotIn('id', $id)->get();
-        }
-
-        return view('clients.access', compact('client', 'coopusers', 'otherUsers'));
-    }
-
-    public function accessForm($clientId, $userId)
-    {
-        $loggedInUser = Auth::user();
-        $user = User::find($userId);
-        $client = Client::find($clientId);
-
-        // No matching client
-        if (!$client) {
-            return redirect('/')->with('message', 'Ingen matchende klient');
-        }
-
-        // Check if the user is the owner of the client
-        $owner = $this->owner($loggedInUser->id, $client->id);
-        if (!$owner && ($loggedInUser->role !== 1 || $loggedInUser->company_id !== $client->owner->company_id)) {
-            // If not, redirect to home page with warning
-            return redirect('/')->with('message', 'Du har ikke tilgang.');
-        }
-
-        // Check if the other user is in loggedinusers company
-        $inCompany = $this->inCompany($loggedInUser->id, $user->id);
-        if (!$inCompany) {
-            // If not, redirect to home page with warning
-            return redirect('/')->with('message', 'Du har ikke tilgang.');
-        }
-
-        $client->firstname = Crypt::decrypt($client->firstname);
-        $client->lastname = Crypt::decrypt($client->lastname);
-
-        return view('clients.accessForm', compact('client', 'user'));
-    }
-
-    public function accessFormPost(Requests\ProvideAccessRequest $request)
-    {
-        $data = $request->all();
-        $loggedInUser = Auth::user();
-        $client = Client::find($data['client_id']);
-        $user = User::find($data['user_id']);
-
-        // Check if the user is the owner of the client
-        $owner = $this->owner($loggedInUser->id, $client->id);
-        if (!$owner && ($loggedInUser->role !== 1 || $loggedInUser->company_id !== $client->owner->company_id)) {
-            // If not, redirect to home page with warning
-            return redirect('/')->with('message', 'Du har ikke tilgang.');
-        }
-
-        // Check if the other user is in loggedinusers company
-        $inCompany = $this->inCompany($loggedInUser->id, $user->id);
-        if (!$inCompany) {
-            // If not, redirect to home page with warning
-            return redirect('/')->with('message', 'Du har ikke tilgang.');
-        }
-
-        $client->user()->attach($user->id);
-
-        // Log the event in table 'accessRights'
-        $log = new Accessright;
-
-        $log->given_by = $loggedInUser->id;
-        $log->user_id = $user->id;
-        $log->client_id = $client->id;
-        $log->reason = $data['reason'];
-        $log->datetime = \Carbon\Carbon::now();
-        $log->save();
-
-        return redirect()->route('clients.access', [$client->id])->with('message', 'Tilganger endret');
-    }
-
-    public function removeAccessForm($clientId, $userId)
-    {
-        $loggedInUser = Auth::user();
-        $user = User::find($userId);
-        $client = Client::find($clientId);
-
-        // Check if the user is the owner of the client
-        $owner = $this->owner($loggedInUser->id, $client->id);
-        if (!$owner && ($loggedInUser->role !== 1 || $loggedInUser->company_id !== $client->owner->company_id)) {
-            // If not, redirect to home page with warning
-            return redirect('/')->with('message', 'Du har ikke tilgang.');
-        }
-
-        $isCoopClient = $this->cooperativeAccess($userId, $clientId);
-        if (!$isCoopClient) {
-            // If not, redirect to home page with warning
-            return redirect('/')->with('message', 'Du har ikke tilgang.');
-        }
-
-        $client->firstname = Crypt::decrypt($client->firstname);
-        $client->lastname = Crypt::decrypt($client->lastname);
-
-        return view('clients.removeaccessform', compact('client', 'user'));
-    }
-
-    public function removeAccessFormPost(Requests\ProvideAccessRequest $request)
-    {
-        $data = $request->all();
-        $loggedInUser = Auth::user();
-        $client = Client::find($data['client_id']);
-        $user = User::find($data['user_id']);
-
-        // Check if the user is the owner of the client
-        $owner = $this->owner($loggedInUser->id, $client->id);
-        if (!$owner && ($loggedInUser->role !== 1 || $loggedInUser->company_id !== $client->owner->company_id)) {
-            // If not, redirect to home page with warning
-            return redirect('/')->with('message', 'Du har ikke tilgang.');
-        }
-
-        $client->user()->detach($user->id);
-
-        // Log the event in table 'accessRights'
-        $log = new Accessright;
-
-        $log->revoked_by = $loggedInUser->id;
-        $log->user_id = $user->id;
-        $log->client_id = $client->id;
-        $log->reason = $data['reason'];
-        $log->datetime = \Carbon\Carbon::now();
-        $log->save();
-
-        return redirect()->route('clients.access', [$client->id])->with('message', 'Tilganger endret');
-    }
-
-    public function transfer($id)
-    {
-        $user = Auth::user();
-        $client = Client::find($id);
-
-        // Check if the user is the owner of the client
-        $owner = $this->owner($user->id, $client->id);
-        if (!$owner) {
-            // If not, redirect to home page with warning
-            return redirect('/')->with('message', 'Du har ikke tilgang.');
-        }
-
-        $client->firstname = Crypt::decrypt($client->firstname);
-        $client->lastname = Crypt::decrypt($client->lastname);
-        $coopusers = $client->user;
-
-        $id = [];
-
-        foreach ($coopusers as $coopuser) {
-            $id[] = $coopuser->id;
-        }
-
-        $company = $user->company;
-        $restUsers = $company->user()->wherenotIn('id', $id)->get();
-        if ($user->role === 2) {
-            $restUsers = User::all()->whereNotIn('id', $id);
-        }
-
-        return view('clients.transfer', compact('client', 'coopusers', 'restUsers'));
-    }
-
-    public function transferForm($clientId, $userId)
-    {
-        $loggedInUser = Auth::user();
-        $user = User::find($userId);
-        $client = Client::find($clientId);
-
-        // Check if the user is the owner of the client
-        $owner = $this->owner($loggedInUser->id, $client->id);
-        if (!$owner) {
-            // If not, redirect to home page with warning
-            return redirect('/')->with('message', 'Du har ikke tilgang.');
-        }
-
-        // Check if the other user is in loggedinusers company
-        $inCompany = $this->inCompany($loggedInUser->id, $user->id);
-        if (!$inCompany && $loggedInUser->role !== 2) {
-            // If not, redirect to home page with warning
-            return redirect('/')->with('message', 'Du har ikke tilgang.');
-        }
-
-        $client->firstname = Crypt::decrypt($client->firstname);
-        $client->lastname = Crypt::decrypt($client->lastname);
-
-        return view('clients.transferform', compact('client', 'user'));
-    }
-
-    public function transferFormPost(Requests\ProvideAccessRequest $request)
-    {
-        $data = $request->all();
-        $loggedInUser = Auth::user();
-        $client = Client::find($data['client_id']);
-        $user = User::find($data['user_id']);
-
-        // Check if the user is the owner of the client
-        $owner = $this->owner($loggedInUser->id, $client->id);
-        if (!$owner) {
-            // If not, redirect to home page with warning
-            return redirect('/')->with('message', 'Du har ikke tilgang.');
-        }
-
-        // Check if the other user is in loggedinusers company
-        $inCompany = $this->inCompany($loggedInUser->id, $user->id);
-        if (!$inCompany && $loggedInUser->role !== 2) {
-            // If not, redirect to home page with warning
-            return redirect('/')->with('message', 'Du har ikke tilgang.');
-        }
-
-        $client->user_id = $data['user_id'];
-        $client->save();
-
-        // Log the event!!
-        $log = new Transfer;
-        $log->transferred_by = $loggedInUser->id;
-        $log->transferred_to = $user->id;
-        $log->client_id = $client->id;
-        $log->reason = $data['reason'];
-        $log->datetime = \Carbon\Carbon::now();
-        $log->save();
-
-        if ($loggedInUser->role === 2) {
-            return redirect()->route('clients.transfer', [$client->id])->with('message', 'Klient overflyttet');
-        } else {
-            return redirect()->route('clients.index', [$loggedInUser->id])->with('message', 'Klient overflyttet');
-        }
-    }
-
-    /**
-     * Role: Admin
-     * View logs for a client
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function logs($id)
-    {
-        $user = Auth::user();
-
-        $this->checkSuspended($user->id, true);
-
-        $client = Client::find($id);
-
-        if (Auth::user()->role !== 2) {
-            return redirect('/')->with('message', 'You are not allowed to perform this operation');
-        }
-
-        // DECRYPT THE ENCRYPTED CLIENT INFO
-        $client->firstname = Crypt::decrypt($client->firstname);
-        $client->lastname = Crypt::decrypt($client->lastname);
-        $client->ssn = Crypt::decrypt($client->ssn);
-
-        return view('clients.logs', compact('client'));
-    }
-
-
-    
-
-    /**
-     * Show the form for creating a new resource.
+     * Show the form for creating a new client.
      *
      * @return \Illuminate\Http\Response
      */
@@ -599,7 +69,7 @@ class ClientController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Store a newly created client
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
@@ -659,7 +129,7 @@ class ClientController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * Display a specific client
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
@@ -701,7 +171,7 @@ class ClientController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * Show the form for editing the personal data for a client
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
@@ -743,7 +213,7 @@ class ClientController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * Update the data for the client
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  int  $id
@@ -802,7 +272,7 @@ class ClientController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Delete the client: 01.11.20: This method does not exist.
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
@@ -810,4 +280,577 @@ class ClientController extends Controller
     public function destroy($id)
     {
     }
+    
+    // THEN CUSTOM METHODS NOT A PART OF THE RESOURCE CONTROLLER
+    
+    /**
+     * View active clients for a logged in user
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function activeIndex()
+    {
+        $user = Auth::User();
+
+        $this->checkSuspended($user->id, true);
+
+        $clients = $user->clients()->where('active', '1')->orderBy('lastname', 'ASC')->get();
+
+        foreach ($clients as $client) {
+            $client->lastname = Crypt::decrypt($client->lastname);
+        }
+
+        $clients = $clients->sortBy('lastname');
+
+        return view('clients.activeIndex', compact('clients'));
+    }
+
+    /**
+     * View archived clients for a logged in user
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function archiveIndex()
+    {
+        $user = Auth::User();
+
+        $this->checkSuspended($user->id, true);
+
+        $clients = $user->clients()->where('active', '0')->orderBy('lastname', 'ASC')->get();
+
+        foreach ($clients as $client) {
+            $client->lastname = Crypt::decrypt($client->lastname);
+        }
+
+        $clients = $clients->sortBy('lastname');
+
+        return view('clients.archiveIndex', compact('clients'));
+    }
+
+    /**
+     * View coop-clients for logged in user (where user currently has access through cooperation (Access given by another user))
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function coopIndex()
+    {
+        $user = Auth::User();
+
+        $this->checkSuspended($user->id, true);
+
+        $clients = $user->coopclients()->orderBy('lastname', 'ASC')->get();
+        foreach ($clients as $client) {
+            $client->lastname = Crypt::decrypt($client->lastname);
+        }
+
+        $clients = $clients->sortBy('lastname');
+
+        return view('clients.coopIndex', compact('clients'));
+    }
+
+    /**
+     * View clients connected to a company
+     * * Role: Admin(all companies), Company Admin(own company)
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function getClientsInCompany($companyId)
+    {
+        $user = Auth::User();
+        $company = Company::find($companyId);
+
+        $this->checkSuspended($user->id, true);
+
+        if ($user->role === 2 || ($user->role === 1 && $user->company_id === $company->id)) {
+            $users = $company->user;
+            $user_ids = [];
+            foreach ($users as $user) {
+                array_push($user_ids, $user->id);
+            }
+            $clients = Client::whereIn('user_id', $user_ids)->get();
+
+            foreach ($clients as $client) {
+                $client->lastname = Crypt::decrypt($client->lastname);
+            }
+
+            $clients = $clients->sortBy('lastname');
+            return view('companies.clients', compact('company', 'clients'));
+        }
+
+        // Else, redirect to home page
+        return redirect('/')->with('message', 'Du har ikke tilgang');
+    }
+
+    /**
+     * View all clients in system
+     * * Role: Admin
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function getAllClients()
+    {
+        $user = Auth::User();
+
+        $this->checkSuspended($user->id, true);
+
+        if ($user->role === 2) {
+            $clients = Client::simplePaginate(30);
+            foreach ($clients as $client) {
+                $client->lastname = Crypt::decrypt($client->lastname);
+            }
+
+            return view('clients.all', compact('clients'));
+        }
+
+        // Else, redirect to home page
+        return redirect('/')->with('message', 'Du har ikke tilgang');
+    }
+
+    /**
+     * View active clients for any user
+     * * Role: Admin(all users), Company Admin(users in own company)
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function getActiveClientsForUser($companyId, $userId)
+    {
+        $loggedInUser = Auth::User();
+        $user = User::find($userId);
+        $company = Company::find($companyId);
+
+        $this->checkSuspended($loggedInUser->id, true);
+
+        if ($loggedInUser->role === 2 || ($loggedInUser->role === 1 && $loggedInUser->company_id === $user->company_id && $loggedInUser->company_id === $company->id)) {
+            $clients = $user->clients()->where('active', 1)->get();
+
+            foreach ($clients as $client) {
+                $client->lastname = Crypt::decrypt($client->lastname);
+            }
+
+            $clients = $clients->sortBy('lastname');
+            return view('users.activeClients', compact('company', 'user', 'clients'));
+        }
+
+        // Else, redirect to home page
+        return redirect('/')->with('message', 'Du har ikke tilgang');
+    }
+
+    /**
+     * View archived clients for any user
+     * * Role: Admin(all users), Company Admin(users in own company)
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function getArchiveClientsForUser($companyId, $userId)
+    {
+        $loggedInUser = Auth::User();
+        $company = Company::find($companyId);
+        $user = User::find($userId);
+
+        $this->checkSuspended($loggedInUser->id, true);
+
+        if ($loggedInUser->role === 2 || ($loggedInUser->role === 1 && $loggedInUser->company_id === $user->company_id && $loggedInUser->company_id === $company->id)) {
+            $clients = $user->clients()->where('active', 0)->get();
+
+            foreach ($clients as $client) {
+                $client->lastname = Crypt::decrypt($client->lastname);
+            }
+
+            $clients = $clients->sortBy('lastname');
+            return view('users.archiveClients', compact('company', 'user', 'clients'));
+        }
+
+        // Else, redirect to home page
+        return redirect('/')->with('message', 'Du har ikke tilgang');
+    }
+
+    /**
+     * View coop clients for any user
+     *  Role: Admin(all users), Company Admin(users in own company)
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function getCoopClientsForUser($companyId, $userId)
+    {
+        $loggedInUser = Auth::User();
+        $company = Company::find($companyId);
+        $user = User::find($userId);
+
+        $this->checkSuspended($loggedInUser->id, true);
+
+        if ($loggedInUser->role === 2 || ($loggedInUser->role === 1 && $loggedInUser->company_id === $user->company_id && $loggedInUser->company_id === $company->id)) {
+            $coopClients = $user->coopClients;
+
+            return view('users.coopClients', compact('company', 'user', 'coopClients'));
+        }
+
+        // Else, redirect to home page
+        return redirect('/')->with('message', 'Du har ikke tilgang');
+    }
+
+    /**
+     * Move a client between active and archive status
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function archiveMove(Request $request)
+    {
+        $data = $request->all();
+        $user = Auth::User();
+        $client = Client::find($data['client_id']);
+
+        // No matching client
+        if (!$client) {
+            return redirect('/')->with('message', 'Ingen matchende klient');
+        }
+
+        // Check if the user is the owner of the client, or if he has access through cooperation.
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        if ($client->active === 0) {
+            $client->active = 1;
+            $client->save();
+            return redirect()->route('clients.archive_index')->with('message', 'Klienten er nå aktiv');
+        }
+
+        if ($client->active === 1) {
+            $client->active = 0;
+            $client->save();
+            return redirect()->route('clients.active_index')->with('message', 'Klienten er flyttet til arkivet');
+        }
+    }
+    
+
+    /**
+     * See which users currently has access to a client, and which possible users that can be given access
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function access($id)
+    {
+        $user = Auth::user();
+        $client = Client::find($id);
+
+        // No matching client
+        if (!$client) {
+            return redirect('/')->with('message', 'Ingen matchende klient');
+        }
+
+        // Check if the user is the owner of the client
+        $owner = $this->owner($user->id, $client->id);
+        if (!$owner && ($user->role !== 1 || $user->company_id !== $client->owner->company_id)) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        $client->firstname = Crypt::decrypt($client->firstname);
+        $client->lastname = Crypt::decrypt($client->lastname);
+        $coopusers = $client->user;
+
+        $id = [];
+
+        foreach ($coopusers as $coopuser) {
+            $id[] = $coopuser->id;
+        }
+
+        $company = $user->company;
+
+        if ($user->role === 2) {
+            $otherUsers = User::wherenotIn('id', $id)->get();
+        } else {
+            $otherUsers = $company->user()->wherenotIn('id', $id)->get();
+        }
+
+        return view('clients.access', compact('client', 'coopusers', 'otherUsers'));
+    }
+
+    /**
+     * Form that is shown for providing a reason for giving access to a specific user (access to a client)
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function accessForm($clientId, $userId)
+    {
+        $loggedInUser = Auth::user();
+        $user = User::find($userId);
+        $client = Client::find($clientId);
+
+        // No matching client
+        if (!$client) {
+            return redirect('/')->with('message', 'Ingen matchende klient');
+        }
+
+        // Check if the user is the owner of the client
+        $owner = $this->owner($loggedInUser->id, $client->id);
+        if (!$owner && ($loggedInUser->role !== 1 || $loggedInUser->company_id !== $client->owner->company_id)) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        // Check if the other user is in loggedinusers company
+        $inCompany = $this->inCompany($loggedInUser->id, $user->id);
+        if (!$inCompany) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        $client->firstname = Crypt::decrypt($client->firstname);
+        $client->lastname = Crypt::decrypt($client->lastname);
+
+        return view('clients.accessForm', compact('client', 'user'));
+    }
+
+    /**
+     * Form post for providing access to another user (to a client), and logging the event
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function accessFormPost(Requests\ProvideAccessRequest $request)
+    {
+        $data = $request->all();
+        $loggedInUser = Auth::user();
+        $client = Client::find($data['client_id']);
+        $user = User::find($data['user_id']);
+
+        // Check if the user is the owner of the client
+        $owner = $this->owner($loggedInUser->id, $client->id);
+        if (!$owner && ($loggedInUser->role !== 1 || $loggedInUser->company_id !== $client->owner->company_id)) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        // Check if the other user is in loggedinusers company
+        $inCompany = $this->inCompany($loggedInUser->id, $user->id);
+        if (!$inCompany) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        $client->user()->attach($user->id);
+
+        // Log the event in table 'accessRights'
+        $log = new Accessright;
+
+        $log->given_by = $loggedInUser->id;
+        $log->user_id = $user->id;
+        $log->client_id = $client->id;
+        $log->reason = $data['reason'];
+        $log->datetime = \Carbon\Carbon::now();
+        $log->save();
+
+        return redirect()->route('clients.access', [$client->id])->with('message', 'Tilganger endret');
+    }
+
+    /**
+     * Form for providing a reason for revoking access to a client for a specific user
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function removeAccessForm($clientId, $userId)
+    {
+        $loggedInUser = Auth::user();
+        $user = User::find($userId);
+        $client = Client::find($clientId);
+
+        // Check if the user is the owner of the client
+        $owner = $this->owner($loggedInUser->id, $client->id);
+        if (!$owner && ($loggedInUser->role !== 1 || $loggedInUser->company_id !== $client->owner->company_id)) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        $isCoopClient = $this->cooperativeAccess($userId, $clientId);
+        if (!$isCoopClient) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        $client->firstname = Crypt::decrypt($client->firstname);
+        $client->lastname = Crypt::decrypt($client->lastname);
+
+        return view('clients.removeaccessform', compact('client', 'user'));
+    }
+
+    /**
+     * Posting the form for revoking access to a client for a specific user, and logging of the event
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function removeAccessFormPost(Requests\ProvideAccessRequest $request)
+    {
+        $data = $request->all();
+        $loggedInUser = Auth::user();
+        $client = Client::find($data['client_id']);
+        $user = User::find($data['user_id']);
+
+        // Check if the user is the owner of the client
+        $owner = $this->owner($loggedInUser->id, $client->id);
+        if (!$owner && ($loggedInUser->role !== 1 || $loggedInUser->company_id !== $client->owner->company_id)) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        $client->user()->detach($user->id);
+
+        // Log the event in table 'accessRights'
+        $log = new Accessright;
+
+        $log->revoked_by = $loggedInUser->id;
+        $log->user_id = $user->id;
+        $log->client_id = $client->id;
+        $log->reason = $data['reason'];
+        $log->datetime = \Carbon\Carbon::now();
+        $log->save();
+
+        return redirect()->route('clients.access', [$client->id])->with('message', 'Tilganger endret');
+    }
+
+
+    /**
+     * Page that shows which users a specific client can be transferred to (transfer means the current owner will lose access)
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function transfer($id)
+    {
+        $user = Auth::user();
+        $client = Client::find($id);
+
+        // Check if the user is the owner of the client
+        $owner = $this->owner($user->id, $client->id);
+        if (!$owner) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        $client->firstname = Crypt::decrypt($client->firstname);
+        $client->lastname = Crypt::decrypt($client->lastname);
+        $coopusers = $client->user;
+
+        $id = [];
+
+        foreach ($coopusers as $coopuser) {
+            $id[] = $coopuser->id;
+        }
+
+        $company = $user->company;
+        $restUsers = $company->user()->wherenotIn('id', $id)->get();
+        if ($user->role === 2) {
+            $restUsers = User::all()->whereNotIn('id', $id);
+        }
+
+        return view('clients.transfer', compact('client', 'coopusers', 'restUsers'));
+    }
+
+    /**
+     * Form for providing a reason for transferring a client to another user
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function transferForm($clientId, $userId)
+    {
+        $loggedInUser = Auth::user();
+        $user = User::find($userId);
+        $client = Client::find($clientId);
+
+        // Check if the user is the owner of the client
+        $owner = $this->owner($loggedInUser->id, $client->id);
+        if (!$owner) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        // Check if the other user is in loggedinusers company
+        $inCompany = $this->inCompany($loggedInUser->id, $user->id);
+        if (!$inCompany && $loggedInUser->role !== 2) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        $client->firstname = Crypt::decrypt($client->firstname);
+        $client->lastname = Crypt::decrypt($client->lastname);
+
+        return view('clients.transferform', compact('client', 'user'));
+    }
+
+    /**
+     * Form post for transferring a client to another user and logging the event
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function transferFormPost(Requests\ProvideAccessRequest $request)
+    {
+        $data = $request->all();
+        $loggedInUser = Auth::user();
+        $client = Client::find($data['client_id']);
+        $user = User::find($data['user_id']);
+
+        // Check if the user is the owner of the client
+        $owner = $this->owner($loggedInUser->id, $client->id);
+        if (!$owner) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        // Check if the other user is in loggedinusers company
+        $inCompany = $this->inCompany($loggedInUser->id, $user->id);
+        if (!$inCompany && $loggedInUser->role !== 2) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        $client->user_id = $data['user_id'];
+        $client->save();
+
+        // Log the event!!
+        $log = new Transfer;
+        $log->transferred_by = $loggedInUser->id;
+        $log->transferred_to = $user->id;
+        $log->client_id = $client->id;
+        $log->reason = $data['reason'];
+        $log->datetime = \Carbon\Carbon::now();
+        $log->save();
+
+        if ($loggedInUser->role === 2) {
+            return redirect()->route('clients.transfer', [$client->id])->with('message', 'Klient overflyttet');
+        } else {
+            return redirect()->route('clients.index', [$loggedInUser->id])->with('message', 'Klient overflyttet');
+        }
+    }
+
+    /**
+     * View logs for a client (see history of 
+     * given access, revoked access,
+     * transfers between users, 
+     * who has accessed records, written records, changed records 
+     * & signed / unsigned records
+     * for a specific client).
+     * * Role: Admin
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function logs($id)
+    {
+        $user = Auth::user();
+
+        $this->checkSuspended($user->id, true);
+
+        $client = Client::find($id);
+
+        if (Auth::user()->role !== 2) {
+            return redirect('/')->with('message', 'You are not allowed to perform this operation');
+        }
+
+        // DECRYPT THE ENCRYPTED CLIENT INFO
+        $client->firstname = Crypt::decrypt($client->firstname);
+        $client->lastname = Crypt::decrypt($client->lastname);
+        $client->ssn = Crypt::decrypt($client->ssn);
+
+        return view('clients.logs', compact('client'));
+    }
+    
 }

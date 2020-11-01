@@ -23,8 +23,10 @@ class TemplateController extends Controller
         $this->middleware('revalidate');
     }
 
+    // FIRST THE METHODS FOR THE RESOURCE CONTROLLER
+    
     /**
-     * Display a listing of the resource.
+     * Show a list of all templates for the logged-in-user
      *
      * @return \Illuminate\Http\Response
      */
@@ -36,7 +38,7 @@ class TemplateController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Show a page for creating a new template
      *
      * @return \Illuminate\Http\Response
      */
@@ -47,7 +49,7 @@ class TemplateController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Store a newly created template
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
@@ -66,7 +68,7 @@ class TemplateController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * Show the contents of a specific template
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
@@ -90,7 +92,7 @@ class TemplateController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * Show the page for editing a specific template
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
@@ -110,32 +112,7 @@ class TemplateController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function setFavorite(Request $request, $templateId)
-    {
-        $user = Auth::user();
-
-        if ($user->favtemplate == $templateId) {
-            $user->favtemplate = 0;
-            $user->save();
-
-            return redirect()->back()->with('message', 'Malen er fjernet som standard');
-        }
-
-        if ($user->favtemplate !== $templateId) {
-            $user->favtemplate = $templateId;
-            $user->save();
-
-            return redirect()->back()->with('message', 'Malen brukes nå som standard når du oppretter nye notater');
-        }
-    }
-
-    /**
-     * Update the specified resource in storage.
+     * Update a specific template in the database
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  int  $id
@@ -161,7 +138,57 @@ class TemplateController extends Controller
     }
 
     /**
-     * Use the template for writing a new client record
+     * Delete a specific template
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function destroy($id)
+    {
+        $user = Auth::user();
+        $template = Template::find($id);
+
+        // If the user is the owner of the template or system admin, delete the template
+        if ($template->created_by === $user->id || $user->role === 2) {
+            $template->delete();
+            return redirect()->route('templates.index')->with('message', 'Mal slettet');
+        }
+
+        // Else, redirect to home page with warning
+        return redirect('/')->with('message', 'Du har ikke tilgang.');
+    }
+    
+    // THEN CUSTOM METHODS
+    
+    /**
+     * Set a favorite template that will be the default when creating new records
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    
+    public function setFavorite(Request $request, $templateId)
+    {
+        $user = Auth::user();
+
+        if ($user->favtemplate == $templateId) {
+            $user->favtemplate = 0;
+            $user->save();
+
+            return redirect()->back()->with('message', 'Malen er fjernet som standard');
+        }
+
+        if ($user->favtemplate !== $templateId) {
+            $user->favtemplate = $templateId;
+            $user->save();
+
+            return redirect()->back()->with('message', 'Malen brukes nå som standard når du oppretter nye notater');
+        }
+    }
+
+    /**
+     * When creating a new record, this method lets the user select a template and the contents
+     * from this template will fill the CKEditor.
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  int  $id
@@ -201,24 +228,5 @@ class TemplateController extends Controller
         return view('records.create', compact('user', 'client', 'template', 'templates'));
     }
 
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy($id)
-    {
-        $user = Auth::user();
-        $template = Template::find($id);
-
-        // If the user is the owner of the template or system admin, delete the template
-        if ($template->created_by === $user->id || $user->role === 2) {
-            $template->delete();
-            return redirect()->route('templates.index')->with('message', 'Mal slettet');
-        }
-
-        // Else, redirect to home page with warning
-        return redirect('/')->with('message', 'Du har ikke tilgang.');
-    }
+    
 }

@@ -35,8 +35,10 @@ class UserController extends Controller
         $this->middleware('revalidate');
     }
 
+    // FIRST METHODS FOR THE RESOURCE CONTROLLER (index, create, store, show, edit, update, destroy)
+    
     /**
-     * Display the specified resource.
+     * Show list of active users in the system
      *
      * @param  int $id
      * @return \Illuminate\Http\Response
@@ -53,20 +55,13 @@ class UserController extends Controller
         return redirect('/')->with('message', 'Du har ikke tilgang.');
     }
 
-    public function inactiveIndex()
-    {
-        $user = Auth::user();
-
-        if ($user->role === 2) {
-            $users = User::where('active', 0)->get();
-            return view('users.index', compact('users'));
-        }
-
-        return redirect('/')->with('message', 'Du har ikke tilgang.');
-    }
-
+    // create-method does not exist. It is handled by RegisterController
+    
+    // store-method does not exist. It is handled by RegisterController
+    
+    
     /**
-     * Display the specified resource.
+     * show-method does nothing currently. 
      *
      * @param  int $id
      * @return \Illuminate\Http\Response
@@ -76,7 +71,7 @@ class UserController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * Page for editing info about the user
      *
      * @param  int $id
      * @return \Illuminate\Http\Response
@@ -116,31 +111,8 @@ class UserController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
-     *
-     * @param  int $id
-     * @return \Illuminate\Http\Response
-     */
-    public function accessLogs($companyId, $userId)
-    {
-        $user = User::find($userId);
-        $loggedInUser = Auth::user();
-        $company = Company::find($companyId);
-
-        // Neither a system admin nor a logged in user
-        if ($loggedInUser->role !== 2 && $user->id !== $loggedInUser->id) {
-            return redirect('/')->with('message', 'Du har ikke tilgang');
-        }
-
-        $logins = $user->logins()->where('success', 'Success')->orderBy('id', 'DESC')->take(5)->get();
-        $wrongPassword = $user->logins()->where('success', '')->where('combocorrect', 'Error')->orderBy('id', 'DESC')->take(5)->get();
-        $crackedPassword = $user->logins()->where('success', '')->where('tokencorrect', 'Error')->orderBy('id', 'DESC')->take(5)->get();
-
-        return view('users.logs', compact('user', 'loggedInUser', 'company', 'logins', 'wrongPassword', 'crackedPassword'));
-    }
-
-    /**
-     * Update the specified resource in storage.
+     * Update-method updates the user's password
+     * Other methods update other details (see below)
      *
      * @param  \Illuminate\Http\Request $request
      * @param  int $id
@@ -186,7 +158,59 @@ class UserController extends Controller
             return redirect()->route('companies.users.edit', [$companyId, $userId])->with('message', 'Passord endret');
         }
     }
+    
+    // destroy-method does not exist. There is a deleteUser-method below, but this needs work.
+    
+    // OTHER METHODS
+    
+    /**
+     * Show a list of inactive users
+     *
+     * @param  int $id
+     * @return \Illuminate\Http\Response
+     */
+    public function inactiveIndex()
+    {
+        $user = Auth::user();
 
+        if ($user->role === 2) {
+            $users = User::where('active', 0)->get();
+            return view('users.index', compact('users'));
+        }
+
+        return redirect('/')->with('message', 'Du har ikke tilgang.');
+    }
+    
+    /**
+     * Show a user's successful logins & login-attempts with this username
+     *
+     * @param  int $id
+     * @return \Illuminate\Http\Response
+     */
+    public function accessLogs($companyId, $userId)
+    {
+        $user = User::find($userId);
+        $loggedInUser = Auth::user();
+        $company = Company::find($companyId);
+
+        // Neither a system admin nor a logged in user
+        if ($loggedInUser->role !== 2 && $user->id !== $loggedInUser->id) {
+            return redirect('/')->with('message', 'Du har ikke tilgang');
+        }
+
+        $logins = $user->logins()->where('success', 'Success')->orderBy('id', 'DESC')->take(5)->get();
+        $wrongPassword = $user->logins()->where('success', '')->where('combocorrect', 'Error')->orderBy('id', 'DESC')->take(5)->get();
+        $crackedPassword = $user->logins()->where('success', '')->where('tokencorrect', 'Error')->orderBy('id', 'DESC')->take(5)->get();
+
+        return view('users.logs', compact('user', 'loggedInUser', 'company', 'logins', 'wrongPassword', 'crackedPassword'));
+    }
+
+    /**
+     * Set a standard title that will be used when the user creates records
+     *
+     * @param  int $id
+     * @return \Illuminate\Http\Response
+     */
     public function standardTitle(Request $request, $companyId, $userId)
     {
         $this->validate($request, [
@@ -208,6 +232,13 @@ class UserController extends Controller
         return redirect()->route('companies.users.edit', [$companyId, $userId])->with('message', 'Standardtittel endret');
     }
 
+    /**
+     * Register a secret question and answer that is stored in the database
+     * This will be visible for the admin, to identify the user if he makes contact through phone etc.
+     *
+     * @param  int $id
+     * @return \Illuminate\Http\Response
+     */
     public function secretQuestion(Request $request, $companyId, $userId)
     {
         $this->validate($request, [
@@ -235,7 +266,12 @@ class UserController extends Controller
     }
 
 
-    // AUTHY REGISTER USER
+    /**
+     * Register a user with Twilio Authy (external API)
+     *
+     * @param  int $id
+     * @return \Illuminate\Http\Response
+     */
     public function registerAuthy(Request $request, $companyId, $userId)
     {
         $data = $request->all();
@@ -274,7 +310,13 @@ class UserController extends Controller
         return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
-    // AUTHY REGISTER USER
+    /**
+     * This method currently only deletes the Authy-ID from local database. Should probably fix it to delete the 
+     * registered user using Authy API.
+     *
+     * @param  int $id
+     * @return \Illuminate\Http\Response
+     */
     public function deleteAuthy(Request $request, $companyId, $userId)
     {
         $loggedInUser = Auth::user();
@@ -297,7 +339,7 @@ class UserController extends Controller
     }
 
     /**
-     * CHANGE TWO-FACTOR STATUS
+     * CHANGE TWO-FACTOR STATUS (sets 2FA ON or OFF, when logging in to the site)
      *
      * @param  \Illuminate\Http\Request $request
      * @param  int $id
@@ -326,6 +368,13 @@ class UserController extends Controller
         return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
+    /**
+     * Give a user a warning that an invoice has not been paid.
+     * Doing this just displays an alert when the user is logged in. 
+     *
+     * @param  int $id
+     * @return \Illuminate\Http\Response
+     */
     public function paymentWarning(Request $request, $companyId, $userId)
     {
         $loggedInUser = Auth::user();
@@ -349,6 +398,13 @@ class UserController extends Controller
         return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
+    /**
+     * Suspend a user that has not paid his invoice. 
+     * Suspending a user will prevent him from performing certain actions in the system.
+     *
+     * @param  int $id
+     * @return \Illuminate\Http\Response
+     */
     public function suspendUser(Request $request, $companyId, $userId)
     {
         $loggedInUser = Auth::user();
@@ -372,6 +428,12 @@ class UserController extends Controller
         return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
+    /**
+     * Toggle a user's status between Active and Inactive (for showing if the user has a valid subscription or not)
+     *
+     * @param  int $id
+     * @return \Illuminate\Http\Response
+     */
     public function activateToggle(Request $request, $companyId, $userId)
     {
         $loggedInUser = Auth::user();
@@ -396,6 +458,12 @@ class UserController extends Controller
         return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
+    /**
+     * Update the user's name and email address
+     *
+     * @param  int $id
+     * @return \Illuminate\Http\Response
+     */
     public function changeInfo(Request $request, $companyId, $userId)
     {
         $loggedInUser = Auth::user();
@@ -426,6 +494,12 @@ class UserController extends Controller
         return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
+    /**
+     * Change which company a user belongs to
+     *
+     * @param  int $id
+     * @return \Illuminate\Http\Response
+     */
     public function changeCompany(Request $request, $companyId, $userId)
     {
         $loggedInUser = Auth::user();
@@ -443,6 +517,13 @@ class UserController extends Controller
         return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
+    /**
+     * Change a user's role (0 = regular user ; 1  = company admin)
+     * Only allow 0 or 1, only allow system admin to perform action
+     *
+     * @param  int $id
+     * @return \Illuminate\Http\Response
+     */
     public function changeRole(Request $request, $companyId, $userId)
     {
         $loggedInUser = Auth::user();
@@ -465,6 +546,13 @@ class UserController extends Controller
         return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
+    /**
+     * Change the user's phone number (only locally, changing this does not affect the user instance at Authy if this
+     * has been registered already)
+     *
+     * @param  int $id
+     * @return \Illuminate\Http\Response
+     */
     public function changePhone(Request $request, $companyId, $userId)
     {
         $loggedInUser = Auth::user();
@@ -484,7 +572,7 @@ class UserController extends Controller
     }
 
     /**
-     * View logs for a client
+     * Show accesses given and revoked + transfers to and from a specific user
      *
      * @return \Illuminate\Http\Response
      */
@@ -504,6 +592,16 @@ class UserController extends Controller
         return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
+    /**
+     * DELETE A USER 
+     * 01.11.20: Not sure if this is good enough today
+     * The point is that the user should not be completely deleted, because this will delete all records, which could again
+     * be a problem if a client has been transferred to another user, and then suddenly all records are deleted etc.
+     * The method needs more work.
+     *
+     * @param  int $id
+     * @return \Illuminate\Http\Response
+     */
     public function deleteUser($companyId, $userId)
     {
         if (Auth::user()->role !== 2) {
@@ -576,7 +674,8 @@ class UserController extends Controller
     }
     
     // STARTING FUNCTIONS RELATED TO DATABASE TRANSFER FROM OLD WORDPRESS SITE
-
+    // THE FUNCTIONS BELOW ARE PROBABLY NOT RELEVANT ANYMORE, BUT STILL EXIST
+    
     // Function to decrypt a value from the old database
     public function oldDecrypt($value)
     {
@@ -1013,5 +1112,7 @@ class UserController extends Controller
 
         return view('records.wphistory', compact('revisions'));
     }
+    
+    // END OF OLD WP-DATABASE METHODS
     
 }
