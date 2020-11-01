@@ -11,6 +11,18 @@
     {!! Form::model($company, array('route' => array('companies.update', $company->id), 'method' => 'put')) !!}
 
     <div class="col-md-12">
+      @if (Auth::user()->role === 2)
+        <div class="form-group">
+          {!! Form::label('name', 'Firmanavnet: ') !!}
+          {!! Form::text('name', null, ['class' => 'form-control']) !!}
+        </div>
+
+        <div class="form-group">
+          {!! Form::label('orgnr', 'organisasjonsnummer: ') !!}
+          {!! Form::text('orgnr', null, ['class' => 'form-control']) !!}
+        </div>
+      @endif
+
       <div class="form-group">
         {!! Form::label('seats', 'Antall brukere: ') !!}
         {!! Form::text('seats', null, ['class' => 'form-control']) !!}

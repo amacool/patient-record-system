@@ -6,7 +6,8 @@
 
 <div class="col-md-9 col-md-offset-3">
 
-  <h4>Last opp en fil for klient <a href="{{ route('clients.show', $client->id) }}">{{$client->firstname}} {{$client->lastname}}</a></h4>
+  <h4>Last opp en fil for <a href="{{ route('clients.show', $client->id) }}">
+      {{$client->firstname}} {{$client->lastname}} - ({{$client->born->format('d.m.Y')}} {{$client->ssn}})</a></h4>
   <hr />
 
   {!! Form::open(array('route' => array('clients.files.store', $client->id), 'method' => 'post', 'files' => 'true')) !!}

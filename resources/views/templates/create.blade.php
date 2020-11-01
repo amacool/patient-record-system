@@ -17,7 +17,7 @@
           </div>
       </div>--}}
 
-    @include('partials.createtemplateform')
+    @include('partials.createTemplateForm')
 
   {!! Form::close() !!}
 

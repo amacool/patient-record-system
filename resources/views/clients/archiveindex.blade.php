@@ -29,7 +29,7 @@
     <td><a class="btn btn-default" href="{{ route('clients.files.index', [$client->id]) }}" role="button">SE</a>
       <a class="btn btn-default" href="{{ route('clients.files.create', [$client->id]) }}" role="button">LAST OPP</a>
     </td>
-    <td><a class="btn btn-default" href="{{ route('clients.access', [$client->id]) }}" role="button">ENDRE</a></td>
+    <td><a class="btn {{ count($client->user) ? 'btn-danger' : 'btn-default' }}" href="{{ route('clients.access', [$client->id]) }}" role="button">ENDRE</a></td>
     <td>
       {!! Form::open(array('route' => array('clients.archive_move'), 'method' => 'POST')) !!}
         {!! Form::hidden('client_id', $client->id) !!}

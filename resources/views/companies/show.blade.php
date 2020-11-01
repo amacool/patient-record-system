@@ -22,10 +22,8 @@
     @foreach ($company->user as $user)
     <tr>
       <td>
-        @if (Auth::user()->role === 2)
+        @if (Auth::user()->role === 2 || (Auth::user()->role === 1 && Auth::user()->company_id == $company->id))
           <a href="{{route('companies.users.edit', [$company->id, $user->id])}}">{{ $user->name }}</a>
-        @elseif (Auth::user()->role === 1)
-          {{ $user->name }}
         @endif
       </td>
       <td>{{ $user->email }}</td>

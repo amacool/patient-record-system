@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Classes\golonka\bbcodeparser\src\BBCodeParser;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Auth;
+use App\Classes\golonka\bbcodeparser\src\BBCodeParser;
 use App\Http\Requests;
 use App\Http\Controllers\Controller;
 use App\Http\Traits\CustomAuthTrait;
@@ -15,6 +15,7 @@ use App\Record;
 use App\Readrecordlog;
 use App\Changerecordlog;
 use App\Signlog;
+use PDF;
 
 
 class RecordController extends Controller
@@ -39,6 +40,7 @@ class RecordController extends Controller
         $client = Client::find($clientId);
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
+        $client->ssn = Crypt::decrypt($client->ssn);
         $user = Auth::user();
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
@@ -95,6 +97,7 @@ class RecordController extends Controller
         // DECRYPT DATA TO BE SHOWN
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
+        $client->ssn = Crypt::decrypt($client->ssn);
 
         return view('records.create', compact('user', 'client', 'clientId', 'template', 'templates'));
     }
@@ -370,7 +373,7 @@ class RecordController extends Controller
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
 
-        return view('records.unsignform', compact('record', 'user', 'client'));
+        return view('records.unsignForm', compact('record', 'user', 'client'));
     }
 
     public function unsignFormPost(Requests\UnsignRequest $request)
@@ -433,6 +436,7 @@ class RecordController extends Controller
         $client = Client::find($clientId);
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
+        $client->ssn = Crypt::decrypt($client->ssn);
         $user = Auth::user();
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
@@ -458,6 +462,41 @@ class RecordController extends Controller
         }
 
         return view('records.viewall', compact('records', 'client', 'parser'));
+    }
+
+    /**
+     * Export all view of records to pdf.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function exportToPDF($clientId) {
+        $client = Client::find($clientId);
+        $client->firstname = Crypt::decrypt($client->firstname);
+        $client->lastname = Crypt::decrypt($client->lastname);
+        $user = Auth::user();
+
+        // Check if the user is the owner of the client, or if he has access through cooperation.
+        $ownerOrAccess = $this->ownerOrAccess($user->id, $client->id);
+        if (!$ownerOrAccess) {
+            // If not, redirect to home page with warning
+            return redirect('/')->with('message', 'Du har ikke tilgang.');
+        }
+
+        $records = $client->records()->orderBy('created_at', 'ASC')->get();
+
+        // Load parser
+        $parser = new BBCodeParser();
+
+        // share data to view
+        // view()->share('records', compact('records'));
+        // view()->share('client', compact('client'));
+        // view()->share('parser', compact('parser'));
+        $pdf = PDF::loadView('records.viewAll', compact('records', 'client', 'parser'));
+
+        // download PDF file with download method
+        return $pdf->download('pdf_file.pdf');
     }
 
     /**
@@ -558,5 +597,40 @@ class RecordController extends Controller
         $parser = new BBCodeParser();
 
         return view('records.changehistoryversion', compact('client', 'record', 'parser'));
+    }
+
+    public function move($clientId, $recordId, Request $request)
+    {
+        $user = Auth::user();
+        if ($user->role === 2) {
+            $search = strtolower($request->search);
+            $record = Record::find($recordId);
+
+            if (!$search) {
+                $clients = Client::where('id', '!=', $clientId)->simplePaginate(30);
+            } else {
+                $clients = Client::where('id', $search)->simplePaginate(30);
+            }
+
+            $client = Client::find($clientId);
+            $client->firstname = Crypt::decrypt($client->firstname);
+            $client->lastname = Crypt::decrypt($client->lastname);
+
+            return view('records.move', compact('client', 'record', 'clients', 'search'));
+        }
+        return redirect('/')->with('message', 'Du har ikke tilgang');
+    }
+
+    public function movePost(Request $request, $clientId, $recordId, $receiverId)
+    {
+        $user = Auth::user();
+        if ($user->role === 2) {
+            $record = Record::find($recordId);
+            $record->client_id = $receiverId;
+            $record->save();
+
+            return redirect()->route('clients.records.list', [$clientId]);
+        }
+        return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 }

@@ -6,13 +6,14 @@
 
 <div class="col-md-9 col-md-offset-3">
 
-  <h4>Alle notater for <a href="{{ route('clients.show', $client->id) }}">{{ $client->firstname }} {{ $client->lastname }} </a> (født {{ $client->born->format('d-m-Y') }})
+  <h4>Alle notater for<a href="{{ route('clients.show', $client->id) }}">
+      {{$client->firstname}} {{$client->lastname}} - ({{$client->born->format('d.m.Y')}} {{$client->ssn}})
+    </a>
     <a class="btn btn-default btn-sm pull-right" href="{{ route('clients.records.print_all', [$client->id]) }}" role="button">UTSKRIFTSVERSJON</a>
   </h4>
   <hr />
 
   @foreach ($records as $record)
-
   <div class="panel panel-default">
     <div class="panel-heading">
 
@@ -49,7 +50,6 @@
     </div>
     <div class="panel-body">{!! $parser->parse(Crypt::decrypt($record->content)) !!}</div>
   </div>
-
   @endforeach
 
 </div>

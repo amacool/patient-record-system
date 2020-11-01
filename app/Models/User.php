@@ -121,7 +121,7 @@ class User extends Model implements AuthenticatableContract,
     // AUTHY FUNKSJONENE LIGGER I USERCONTROLLER. TROR EGENTLIG IKKE JEG TRENGER DE HER
     // AUTHY REGISTER USER
     public function registerAuthy() {
-        $authy_api = new AuthyApi(getenv('AUTHY_TOKEN'));
+        $authy_api = new AuthyApi(config('authy.authy_token'));
         $user = $authy_api->registerUser($this->email, $this->phone, $this->country_code);
 
         if ($user->ok()) {
@@ -134,7 +134,7 @@ class User extends Model implements AuthenticatableContract,
 
     // AUTHY SEND SMS
     public function sendToken() {
-        $authy_api = new AuthyApi(getenv('AUTHY_TOKEN'));
+        $authy_api = new AuthyApi(config('authy.authy_token'));
         $sms = $authy_api->requestSms($this->authy_id);
 
         return $sms->ok();
@@ -142,7 +142,7 @@ class User extends Model implements AuthenticatableContract,
 
     // AUTHY verify token
     public function verifyToken($token) {
-        $authy_api = new AuthyApi(getenv('AUTHY_TOKEN'));
+        $authy_api = new AuthyApi(config('authy.authy_token'));
         $verification = $authy_api->verifyToken($this->authy_id, $token);
 
         if ($verification->ok()) {

@@ -2,8 +2,6 @@
 
 @section('content')
 
-@include('partials.confirmdelete')
-
 @include('partials.clientssidebar')
 
 {{--<div class="alert alert-danger" role="alert">
@@ -12,8 +10,7 @@
         tidsrommet, da du kan risikere at notatet ikke blir lagret.
     </div>--}}
 
-<h1>Aktive klienter</h1>
-
+<h1>Alle klienter</h1>
 
 <table class="table">
   <tr>
@@ -22,7 +19,7 @@
     <th>Journalnotater</th>
     <th>Filer</th>
     <th>Tilganger</th>
-    <th>Skjul</th>
+    <th>Status</th>
   </tr>
 
   @foreach ($clients as $client)
@@ -35,13 +32,8 @@
     <td><a class="btn btn-default" href="{{ route('clients.files.index', [$client->id]) }}" role="button">SE</a>
       <a class="btn btn-default" href="{{ route('clients.files.create', [$client->id]) }}" role="button">LAST OPP</a>
     </td>
-    <td><a class="btn btn-default" href="{{ route('clients.access', [$client->id]) }}" role="button">ENDRE</a></td>
-    <td>
-      {!! Form::open(array('route' => array('clients.archive_move'), 'method' => 'POST')) !!}
-      {!! Form::hidden('client_id', $client->id) !!}
-      <button type="submit" class="btn btn-danger">Skjul</button>
-      {!! Form::close() !!}
-    </td>
+    <td><a class="btn {{ count($client->user) ? 'btn-danger' : 'btn-default' }}" href="{{ route('clients.access', [$client->id]) }}" role="button">ENDRE</a></td>
+    <td>{{ $client->active === 1 ? 'Aktiv' : 'Inaktiv' }}</td>
   </tr>
   @endforeach
 </table>

@@ -6,6 +6,9 @@
 
 <div class="col-md-9 col-md-offset-3">
 
+  <h4>Personlig informasjon for {{$client->firstname}} {{$client->lastname}} - ({{$client->born->format('d.m.Y')}} {{$client->ssn}})</h4>
+  <h5>Behandlingsansvarlig: {{$client->owner->name}} ({{$client->owner->company->name}})</h5>
+
   <table class="table">
     <tr>
       <th>Overskrift</th>

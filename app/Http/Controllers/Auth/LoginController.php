@@ -103,7 +103,7 @@ class LoginController extends Controller
 
                 // Log the user in
                 Auth::login($user);
-                return redirect('/clients');
+                return redirect('/clients/active');
             }
         }
 
@@ -183,7 +183,8 @@ class LoginController extends Controller
                 $loginlog->success = 'Success';
                 $loginlog->save();
 
-                return redirect($this->redirectPath());
+                //return redirect($this->redirectPath());
+                return redirect('/clients/active');
             } else {
                 // Log that the user entered wrong token
                 $loginlog = new Login;

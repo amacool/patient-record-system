@@ -37,6 +37,7 @@ class FileController extends Controller
         $client = Client::find($clientId);
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
+        $client->ssn = Crypt::decrypt($client->ssn);
         $user = Auth::user();
 
         // Check if the user is the owner of the client, or if he has access through cooperation.
@@ -69,6 +70,7 @@ class FileController extends Controller
         //DECRYPT DATA TO BE SHOWN
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
+        $client->ssn = Crypt::decrypt($client->ssn);
 
         return view('files.create', compact('client', 'clientId'));
     }

@@ -2,7 +2,6 @@
 <html lang="en">
 
 <head>
-
   <meta charset="UTF-8">
   <!-- No indexing from search engines -->
   <meta name="robots" content="noindex, nofollow">
@@ -21,15 +20,13 @@
   <!-- Authy js -->
   <link href="https://www.authy.com/form.authy.min.css" media="screen" rel="stylesheet" type="text/css">
   <script src="https://www.authy.com/form.authy.min.js" type="text/javascript"></script>
-
 </head>
 
 <body>
 
   <div class="col-md-10 col-md-offset-1">
 
-    <h4>Alle notater for {{$client->firstname}} {{$client->lastname}} (født {{$client->born->format('d-m-Y')}})
-
+    <h4>Alle notater for {{ $client->firstname }} {{ $client->lastname }} (født {{ $client->born->format('d-m-Y') }})
     </h4>
     <hr />
 
@@ -41,36 +38,32 @@
         "{{\Crypt::decrypt($record->title)}}", forfatter {{$record->user->name}} (opprettet {{$record->created_at->format('d/m/Y')}}).
 
         {{--<span class="pull-right">
-
-                        Avtaledato
-                        @if (($record->app_date->format('d/m/Y')) == "30/11/-0001")
-                            ikke angitt
-                        @else
-                            {{$record->app_date->format('d/m/Y')}}
-        @endif
-
+          Avtaledato
+          @if (($record->app_date->format('d/m/Y')) == "30/11/-0001")
+            ikke angitt
+          @else
+            {{ $record->app_date->format('d/m/Y') }}
+          @endif
         </span>--}}
 
         <span class="pull-right">
-
           Avtaledato
           @if (($record->app_date->format('d/m/Y')) == "30/11/-0001")
-          ikke angitt
+            ikke angitt
           @else
-          {{$record->app_date->format('d/m/Y')}}
+            {{ $record->app_date->format('d/m/Y') }}
           @endif
-
         </span>
 
-        <br />Notatet ble sist oppdatert {{$record->updated_at->format('d/m/Y')}} av {{$record->user->name}}.
+        <br />Notatet ble sist oppdatert {{ $record->updated_at->format('d/m/Y') }} av {{ $record->user->name }}.
 
         <span class="pull-right">
           @if ($record->signed_by == null)
-          Ikke signert
+            Ikke signert
           @endif
 
           @if ($record->signed_by !== null)
-          Signert {{$record->signed_date->format('d/m/Y')}} av {{$record->user->name}}
+            Signert {{ $record->signed_date->format('d/m/Y') }} av {{ $record->user->name }}
           @endif
         </span>
 

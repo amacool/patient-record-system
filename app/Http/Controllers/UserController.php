@@ -20,6 +20,7 @@ use App\Wpposts;
 use App\Template;
 use App\Awaitingupload;
 use App\Awaitingdiagnoses;
+use Illuminate\Validation\Rule;
 
 
 class UserController extends Controller
@@ -82,7 +83,7 @@ class UserController extends Controller
      */
     public function edit($companyId, $userId)
     {
-        $authy_api = new AuthyApi(getenv('AUTHY_TOKEN'));
+        $authy_api = new AuthyApi(config('authy.authy_token'));
         $user = User::find($userId);
         $loggedInUser = Auth::user();
         $company = Company::find($companyId);
@@ -90,7 +91,7 @@ class UserController extends Controller
         $companyPairs = [];
 
         // Neither a system admin nor a logged in user
-        if ($loggedInUser->role !== 2 && $user->id !== $loggedInUser->id) {
+        if ($loggedInUser->role !== 2 && ($companyId != $loggedInUser->company_id || $loggedInUser->role !== 1) && $user->id !== $loggedInUser->id) {
             return redirect('/')->with('message', 'Du har ikke tilgang');
         }
 
@@ -104,7 +105,6 @@ class UserController extends Controller
         };
 
         if ($user->authy_id == null) {
-            $authyStatus = $authy_api->userStatus($user->authy_id);
             $authyStatus = null;
         };
 
@@ -259,7 +259,7 @@ class UserController extends Controller
             $country_code = $data['country_code'];
             $email = $user->email;
 
-            $authy_api = new AuthyApi(getenv('AUTHY_TOKEN'));
+            $authy_api = new AuthyApi(config('authy.authy_token'));
             $registeredUser = $authy_api->registerUser($email, $phone, $country_code);
 
             if ($registeredUser->ok()) {
@@ -285,7 +285,7 @@ class UserController extends Controller
 
             $authy_id = $data['authy_id'];
 
-            $authy_api = new AuthyApi(getenv('AUTHY_TOKEN'));
+            $authy_api = new AuthyApi(config('authy.authy_token'));
 
             $user->authy_id = "";
             $user->save();
@@ -396,6 +396,36 @@ class UserController extends Controller
         return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
+    public function changeInfo(Request $request, $companyId, $userId)
+    {
+        $loggedInUser = Auth::user();
+        $this->validate($request, [
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($userId)],
+        ], [
+            'name.required' => 'Du må oppgi et navn',
+            'name.string' => 'Navnet må være av typen string',
+            'name.max' => 'Navnet kan ikke være lengre enn 255 tegn',
+            'email.required' => 'Du må oppgi en epostadresse',
+            'email.string' => 'Epostadressen må være av typen string',
+            'email.email' => 'Epostformatet er ugyldig',
+            'email.max' => 'Epostadressen kan ikke være lengre enn 255 tegn',
+            'email.unique' => 'Epostadressen er allerede registrert i systemet',
+        ]);
+        $data = $request->all();
+        // Action can only be performed by system admin
+        if ($loggedInUser->role === 2) {
+            $user = User::find($userId);
+            $user->name = $data['name'];
+            $user->email = $data['email'];
+            $user->save();
+            return redirect()->route('companies.users.edit', [$user->company->id, $user->id])->with('message', 'Name and Email is edited');
+        }
+
+        // Else, redirect to home page
+        return redirect('/')->with('message', 'Du har ikke tilgang');
+    }
+
     public function changeCompany(Request $request, $companyId, $userId)
     {
         $loggedInUser = Auth::user();
@@ -416,13 +446,18 @@ class UserController extends Controller
     public function changeRole(Request $request, $companyId, $userId)
     {
         $loggedInUser = Auth::user();
+
+        // Make sure only roles 0 or 1 can be chosen
+        $this->validate($request, [
+            'role' => ["required" , "max:1", "in:0,1"]
+        ]);
         $data = $request->all();
 
         // Action can only be performed by system admin
         if ($loggedInUser->role === 2) {
-            $user = User::find($userId);
-            $user->role = $data['role'];
-            $user->save();
+                $user = User::find($userId);
+                $user->role = $data['role'];
+                $user->save();
             return redirect()->back()->with('message', 'Rolle endret');
         }
 
@@ -469,8 +504,78 @@ class UserController extends Controller
         return redirect('/')->with('message', 'Du har ikke tilgang');
     }
 
+    public function deleteUser($companyId, $userId)
+    {
+        if (Auth::user()->role !== 2) {
+            return redirect('/')->with('message', 'You are not allowed to perform this operation');
+        }
 
-    // STARTING FUNCTIONS RELATED TO DATABASE TRANSFER
+        $user = User::find($userId);
+        $user->active = 0;
+
+        function generateRandomString($length = 10) {
+            $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            $charactersLength = strlen($characters);
+            $randomString = '';
+            for ($i = 0; $i < $length; $i++) {
+                $randomString .= $characters[rand(0, $charactersLength - 1)];
+            }
+            return $randomString;
+        }
+
+        $newPassword = generateRandomString();
+
+        $user->password = bcrypt($newPassword);
+        $user->save();
+
+        foreach ($user->clients as $client) {
+            $client->firstname = Crypt::encrypt("Klient");
+            $client->lastname = Crypt::encrypt("Slettet");
+            $client->born = "1970-01-01";
+            $client->ssn = Crypt::encrypt("");
+            $client->civil_status = Crypt::encrypt("");
+            $client->work_status = Crypt::encrypt("");
+            $client->medication = Crypt::encrypt("");
+            $client->street_address = Crypt::encrypt("");
+            $client->postal_code = Crypt::encrypt("");
+            $client->city = Crypt::encrypt("");
+            $client->phone = Crypt::encrypt("");
+            $client->closest_relative = Crypt::encrypt("");
+            $client->closest_relative_phone = Crypt::encrypt("");
+            $client->children = Crypt::encrypt("");
+            $client->gp = Crypt::encrypt("");
+            $client->other_info = Crypt::encrypt("Klienten er slettet fordi klientansvarlig sin profil i systemet er slettet");
+            $client->save();
+        }
+
+        foreach ($user->records as $record) {
+            $record->title = Crypt::encrypt("Slettet");
+            $record->content = Crypt::encrypt("Notatet er slettet fordi forfatteren slettet profilen sin i journalsystemet");
+            $record->save();
+        }
+
+        foreach ($user->changerecord as $record) {
+            $record->formertitle = Crypt::encrypt("Slettet");
+            $record->formercontent = Crypt::encrypt("Historikken for notatet er slettet fordi forfatteren slettet profilen sin i systemet");
+            $record->newtitle = Crypt::encrypt("Slettet");
+            $record->newcontent = Crypt::encrypt("Historikken for notatet er slettet fordi forfatteren slettet profilen sin i systemet");
+            $record->save();
+        }
+
+        foreach ($user->files as $file) {
+            $file->file = "Slettet";
+            $file->description = "Slettet fordi bruker avviklet journalsystem";
+            $file->save();
+        }
+
+        // Set the company of the user to "Psykologbasen", to avoid the current company seeing him
+        $user->company_id = 1;
+        $user->save();
+
+        return redirect('/')->with('message', 'Brukeren er slettet');
+    }
+    
+    // STARTING FUNCTIONS RELATED TO DATABASE TRANSFER FROM OLD WORDPRESS SITE
 
     // Function to decrypt a value from the old database
     public function oldDecrypt($value)
@@ -908,75 +1013,5 @@ class UserController extends Controller
 
         return view('records.wphistory', compact('revisions'));
     }
-
-    public function deleteUser($companyId, $userId)
-    {
-        if (Auth::user()->role !== 2) {
-            return redirect('/')->with('message', 'You are not allowed to perform this operation');
-        }
-
-        $user = User::find($userId);
-        $user->active = 0;
-
-        function generateRandomString($length = 10) {
-            $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-            $charactersLength = strlen($characters);
-            $randomString = '';
-            for ($i = 0; $i < $length; $i++) {
-                $randomString .= $characters[rand(0, $charactersLength - 1)];
-            }
-            return $randomString;
-        }
-
-        $newPassword = generateRandomString();
-
-        $user->password = bcrypt($newPassword);
-        $user->save();
-
-        foreach ($user->clients as $client) {
-            $client->firstname = Crypt::encrypt("Klient");
-            $client->lastname = Crypt::encrypt("Slettet");
-            $client->born = "1970-01-01";
-            $client->ssn = Crypt::encrypt("");
-            $client->civil_status = Crypt::encrypt("");
-            $client->work_status = Crypt::encrypt("");
-            $client->medication = Crypt::encrypt("");
-            $client->street_address = Crypt::encrypt("");
-            $client->postal_code = Crypt::encrypt("");
-            $client->city = Crypt::encrypt("");
-            $client->phone = Crypt::encrypt("");
-            $client->closest_relative = Crypt::encrypt("");
-            $client->closest_relative_phone = Crypt::encrypt("");
-            $client->children = Crypt::encrypt("");
-            $client->gp = Crypt::encrypt("");
-            $client->other_info = Crypt::encrypt("Klienten er slettet fordi klientansvarlig sin profil i systemet er slettet");
-            $client->save();
-        }
-
-        foreach ($user->records as $record) {
-            $record->title = Crypt::encrypt("Slettet");
-            $record->content = Crypt::encrypt("Notatet er slettet fordi forfatteren slettet profilen sin i journalsystemet");
-            $record->save();
-        }
-
-        foreach ($user->changerecord as $record) {
-            $record->formertitle = Crypt::encrypt("Slettet");
-            $record->formercontent = Crypt::encrypt("Historikken for notatet er slettet fordi forfatteren slettet profilen sin i systemet");
-            $record->newtitle = Crypt::encrypt("Slettet");
-            $record->newcontent = Crypt::encrypt("Historikken for notatet er slettet fordi forfatteren slettet profilen sin i systemet");
-            $record->save();
-        }
-
-        foreach ($user->files as $file) {
-            $file->file = "Slettet";
-            $file->description = "Slettet fordi bruker avviklet journalsystem";
-            $file->save();
-        }
-
-        // Set the company of the user to "Psykologbasen", to avoid the current company seeing him
-        $user->company_id = 1;
-        $user->save();
-
-        return redirect('/')->with('message', 'Brukeren er slettet');
-    }
+    
 }

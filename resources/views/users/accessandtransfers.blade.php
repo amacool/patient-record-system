@@ -30,7 +30,13 @@
     <tr>
       <td>@if ($ar->givenby !== null){{$ar->givenby->name}}@endif</td>
       <td>{{$ar->user->name}}</td>
-      <td>{{Crypt::decrypt($ar->clients->firstname)}} {{Crypt::decrypt($ar->clients->lastname)}}</td>
+      <td>
+        @if (in_array($ar->clients->toArray(), $user->clients->toArray()) || in_array($ar->clients->toArray(), $user->coopClients->toArray()))
+          <a href="{{ route('clients.show', [$ar->clients->id]) }}">{{Crypt::decrypt($ar->clients->lastname)}} {{Crypt::decrypt($ar->clients->firstname)}}</a>
+        @else
+          {{Crypt::decrypt($ar->clients->lastname)}} {{Crypt::decrypt($ar->clients->firstname)}}
+        @endif
+      </td>
       <td>{{$ar->reason}}</td>
       <td>{{$ar->datetime}}</td>
     </tr>
@@ -127,7 +133,13 @@
     <tr>
       <td>@if ($ar->revoked_by !== null){{$ar->revokedby->name}}@endif</td>
       <td>{{$ar->user->name}}</td>
-      <td>{{Crypt::decrypt($ar->clients->firstname)}} {{Crypt::decrypt($ar->clients->lastname)}}</td>
+      <td>
+        @if (in_array($ar->clients->toArray(), $user->clients->toArray()) || in_array($ar->clients->toArray(), $user->coopClients->toArray()))
+          <a href="{{ route('clients.show', [$ar->clients->id]) }}">{{Crypt::decrypt($ar->clients->lastname)}} {{Crypt::decrypt($ar->clients->firstname)}}</a>
+        @else
+          {{Crypt::decrypt($ar->clients->lastname)}} {{Crypt::decrypt($ar->clients->firstname)}}
+        @endif
+      </td>
       <td>{{$ar->reason}}</td>
       <td>{{$ar->datetime}}</td>
     </tr>
@@ -161,7 +173,13 @@
     <tr>
       <td>{{$tl->transferredby->name}}</td>
       <td>{{$tl->transferredto->name}}</td>
-      <td>{{Crypt::decrypt($tl->clients->firstname)}} {{Crypt::decrypt($tl->clients->lastname)}}</td>
+      <td>
+        @if (in_array($tl->clients->toArray(), $user->clients->toArray()) || in_array($tl->clients->toArray(), $user->coopClients->toArray()))
+          <a href="{{ route('clients.show', [$tl->clients->id]) }}">{{Crypt::decrypt($tl->clients->lastname)}} {{Crypt::decrypt($tl->clients->firstname)}}</a>
+        @else
+          {{Crypt::decrypt($tl->clients->lastname)}} {{Crypt::decrypt($tl->clients->firstname)}}
+        @endif
+      </td>
       <td>{{$tl->reason}}</td>
       <td>{{$tl->datetime}}</td>
     </tr>
@@ -188,7 +206,13 @@
     <tr>
       <td>{{$tl->transferredby->name}}</td>
       <td>{{$tl->transferredto->name}}</td>
-      <td>{{Crypt::decrypt($tl->clients->firstname)}} {{Crypt::decrypt($tl->clients->lastname)}}</td>
+      <td>
+        @if (in_array($tl->clients->toArray(), $user->clients->toArray()) || in_array($tl->clients->toArray(), $user->coopClients->toArray()))
+          <a href="{{ route('clients.show', [$tl->clients->id]) }}">{{Crypt::decrypt($tl->clients->lastname)}} {{Crypt::decrypt($tl->clients->firstname)}}</a>
+        @else
+          {{Crypt::decrypt($tl->clients->lastname)}} {{Crypt::decrypt($tl->clients->firstname)}}
+        @endif
+      </td>
       <td>{{$tl->reason}}</td>
       <td>{{$tl->datetime}}</td>
     </tr>

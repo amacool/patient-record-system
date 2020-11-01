@@ -11,6 +11,9 @@
           <li><a href="{{ route('clients.files.index', [$client->id]) }}">Filer</a></li>
           <li><a href="{{ route('clients.access', [$client->id]) }}">Tilganger</a></li>
           <li><a href="{{ route('clients.transfer', [$client->id]) }}">Overfør</a></li>
+          @if (Auth::user()->role === 2)
+            <li><a href="{{ route('clients.logs', [$client->id]) }}">Logg</a></li>
+          @endif
         </ul>
       </div>
       <!--/.well -->
@@ -18,3 +21,5 @@
     <!--/sidebar-nav-fixed -->
   </div>
   <!--/span-->
+
+

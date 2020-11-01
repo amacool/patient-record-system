@@ -4,6 +4,7 @@ namespace App;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use DateTimeInterface;
 
 class Record extends Model
 {
@@ -28,6 +29,11 @@ class Record extends Model
     public function getDates()
     {
         return array('app_date', 'signed_date', 'created_at', 'updated_at');
+    }
+
+    protected function serializeDate(DateTimeInterface $date)
+    {
+        return $date->format('Y-m-d H:i:s');
     }
 
 }

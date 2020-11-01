@@ -176,6 +176,7 @@ class TemplateController extends Controller
         // DECRYPT DATA TO BE SHOWN
         $client->firstname = Crypt::decrypt($client->firstname);
         $client->lastname = Crypt::decrypt($client->lastname);
+        $client->ssn = Crypt::decrypt($client->ssn);
 
         $template = Template::find($data['template_id']);
 

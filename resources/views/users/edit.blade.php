@@ -8,6 +8,33 @@
   <h3>{{ __('Innstillinger for ') }} {{ $user->name }}</h3>
   <hr />
 
+  @if (Auth::user()->role === 2)
+    <div class="row">
+      <h5>{{ __('Change Name and Email:') }}</h5>
+
+      {!! Form::model($user, array('route' => array('companies.users.change_info', $company ? $company->id : 0, $user->id))) !!}
+      <div class="col-md-8">
+        <div class="form-group">
+          {!! Form::label('name', 'navn: ') !!}
+          {!! Form::text('name', null, ['class' => 'form-control']) !!}
+        </div>
+      </div>
+      <div class="col-md-8">
+        <div class="form-group">
+          {!! Form::label('email', 'epostadresse: ') !!}
+          {!! Form::text('email', null, ['class' => 'form-control']) !!}
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="form-group">
+          {!! Form::submit('Lagre') !!}
+        </div>
+      </div>
+      {!! Form::close() !!}
+    </div>
+
+    <hr />
+  @endif
   <div class="row">
     <h5>{{ __('Endre passord:') }}</h5>
 
@@ -90,7 +117,7 @@
 
     @if ($authyStatus == null)
       Brukeren er ikke registrert hos authy, men er registrert med følgende telefonnummer på profilen: {{$user->phone}}, landskode {{$user->country_code}}
-      
+
       @if (Auth::user()->role === 2)
         {!! Form::open(array('route' => array('companies.users.register_authy', $company ? $company->id : 0, $user->id))) !!}
           {!! Form::hidden('phone', $user->phone) !!}
@@ -104,7 +131,7 @@
         {!! Form::close() !!}
       @endif
     @endif
-    
+
     @if ($authyStatus !== null)
       Brukeren har følgende detaljer hos Authy: <br />
       Authy-id = {{ $authyStatus->authy_id }} <br />
@@ -138,8 +165,8 @@
       <hr />
       <h5>{{ __('Hemmelig Spørsmål') }}</h5>
 
-      Spørsmål: @if ($user->secret_question !== '') {{ Crypt::decrypt($user->secret_question) }} @endif <br />
-      Svar: @if ($user->secret_answer !== '') {{ Crypt::decrypt($user->secret_answer) }} @endif
+      Spørsmål: @if ($user->secret_question !== null) {{ Crypt::decrypt($user->secret_question) }} @endif <br />
+      Svar: @if ($user->secret_answer !== null) {{ Crypt::decrypt($user->secret_answer) }} @endif
 
       <hr />
       <h5>{{ __('Bytt hvilket firma brukeren tilhører:') }}</h5>

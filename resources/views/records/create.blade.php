@@ -6,7 +6,7 @@
 
 <div class="col-md-9 col-md-offset-3">
 
-  <h4>Opprett nytt notat for <a href="{{ route('clients.show', $client->id) }}">{{ $client->firstname }} {{ $client->lastname }}</a></h4>
+  <h4>Opprett nytt notat for <a href="{{ route('clients.show', $client->id) }}">{{$client->firstname}} {{$client->lastname}} - ({{$client->born->format('d.m.Y')}} {{$client->ssn}})</a></h4>
   <hr />
 
   Du blir automatisk logget ut om: <span class="countdown"></span> . Sørg for at du lagrer notatet før tiden løper ut.

@@ -46,11 +46,11 @@ Du er logget inn som
 
 <hr>
 
-<div class="alert alert-danger" role="alert">
+{{--<div class="alert alert-danger" role="alert">
   04.07.18: PLANLAGT VEDLIKEHOLD: På grunn av arbeid på serveren vil journalsystemet være ustabilt
   i ca 15 minutter fra torsdag 5.juli klokken 23.50. Det anbefales å ikke skrive notater i dette
   tidsrommet, da du kan risikere at notatet ikke blir lagret.
-</div>
+</div>--}}
 
 @endif
 @stop

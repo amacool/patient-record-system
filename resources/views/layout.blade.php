@@ -65,6 +65,7 @@
             <ul class="dropdown-menu">
               <li><a href="{{route('companies.index')}}">{{ __('Firma') }}</a></li>
               <li><a href="{{route('users.index')}}">{{ __('Brukere') }}</a></li>
+              <li><a href="{{route('clients.all')}}">{{ __('Alle klienter') }}</a></li>
             </ul>
           </li>
           @endif
@@ -76,7 +77,7 @@
             </ul>
           </li>
 
-          <li><a href="{{route('clients.index')}}">{{ __('Klienter') }}</a></li>
+          <li><a href="{{route('clients.active_index')}}">{{ __('Klienter') }}</a></li>
 
         </ul>
 

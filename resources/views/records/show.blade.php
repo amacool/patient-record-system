@@ -49,6 +49,9 @@
         @endif
       @endif
       <a class="btn btn-default btn-sm pull-right" href="{{ route('clients.records.change_history', [$client->id, $record->id]) }}" role="button">HISTORIE</a>
+      @if (Auth::user()->role === 2)
+        <a class="btn btn-default btn-sm pull-right" href="{{ route('clients.records.move', [$client->id, $record->id]) }}" role="button">Flytt</a>
+      @endif
       <br />
 
     </div>

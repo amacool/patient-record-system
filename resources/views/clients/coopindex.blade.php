@@ -7,7 +7,7 @@
 @include('partials.clientssidebar')
 
 
-<h1>Tilganger jeg har blitt gitt av andre
+<h1>Tilganger jeg har mottatt fra andre brukere
 </h1>
 
 <table class="table">
@@ -16,6 +16,8 @@
     <th>Født</th>
     <th>Journalnotater</th>
     <th>Filer</th>
+    <th>Status</th>
+    <th>Eier</th>
 
   </tr>
 
@@ -29,7 +31,8 @@
     <td><a class="btn btn-default" href="{{ route('clients.files.index', [$client->id]) }}" role="button">SE</a>
       <a class="btn btn-default" href="{{ route('clients.files.create', [$client->id]) }}" role="button">LAST OPP</a>
     </td>
-
+    <td>{{ $client->active === 1 ? 'Aktiv' : 'Inaktiv' }}</td>
+    <td>{{ $client->owner->name }}</td>
   </tr>
   @endforeach
 </table>

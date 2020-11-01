@@ -6,7 +6,9 @@
 
 <div class="col-md-9 col-md-offset-3">
 
-  <h4>Liste over alle notater for {{ $client->firstname }} {{ $client->lastname }}</h4>
+  <h4>Liste over alle notater for <a href="{{ route('clients.show', $client->id) }}">
+      {{$client->firstname}} {{$client->lastname}} - ({{$client->born->format('d.m.Y')}} {{$client->ssn}})
+    </a></h4>
 
   <table class="table">
     <tr>

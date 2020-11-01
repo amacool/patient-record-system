@@ -6,7 +6,7 @@
 
 <div class="col-md-9 col-md-offset-3">
 
-  <h4>Endre personlig info for {{ $client->firstname }} {{ $client->lastname }}</h4>
+  <h4>Endre personlig info for {{$client->firstname}} {{$client->lastname}} - ({{$client->born->format('d.m.Y')}} {{$client->ssn}})</h4>
   <hr />
 
   {!! Form::model($client, array('route' => array('clients.update', $client->id), 'method' => 'put', 'autocomplete' => 'off')) !!}

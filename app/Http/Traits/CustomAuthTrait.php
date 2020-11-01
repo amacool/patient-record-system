@@ -158,14 +158,14 @@ trait CustomAuthTrait
         $user = User::find($userId);
 
         if ($user->suspended && $redirect) {
-          return redirect('/')->with('message', 'Tilgangen din har blitt begrenset på grunn av mangelfull betaling')->send();
+            return redirect('/')->with('message', 'Tilgangen din har blitt begrenset på grunn av mangelfull betaling')->send();
         }
         return $user->suspended;
     }
 
     public function checkPaymentMissing($userId) {
-      $user = User::find($userId);
+        $user = User::find($userId);
 
-      return $user->payment_missing;
+        return $user->payment_missing;
     }
 }
