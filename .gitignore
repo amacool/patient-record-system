@@ -5,3 +5,6 @@ Homestead.yaml
 Homestead.json
 .env
 /.idea
+.vscode
+.editorconfig
+.DS_Store
